@@ -1,0 +1,155 @@
+// Trading Journal data model.
+// Money/price values use Decimal; derived analytics (P/L, RRR, duration) are
+// computed on read in lib/analytics, never persisted.
+// Default datasource is SQLite (zero-setup, self-host friendly); swap the
+// provider + DATABASE_URL to "postgresql" for a hosted DB.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model Account {
+  id              String         @id @default(cuid())
+  name            String
+  assetClass      String         @default("Forex") // Forex | Stocks | Crypto | Futures | Other
+  currency        String         @default("USD")
+  startingCapital Decimal        @default(0)
+  notes           String?
+  createdAt       DateTime       @default(now())
+  trades          Trade[]
+  capitalEvents   CapitalEvent[]
+  assets          Asset[]
+}
+
+model CapitalEvent {
+  id        String   @id @default(cuid())
+  accountId String
+  account   Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  datetime  DateTime @default(now())
+  type      String // deposit | withdraw | adjustment
+  amount    Decimal // signed: deposits positive, withdrawals negative
+  note      String?
+
+  @@index([accountId])
+}
+
+model Asset {
+  id         String   @id @default(cuid())
+  symbol     String
+  assetClass String   @default("Forex")
+  accountId  String?
+  account    Account? @relation(fields: [accountId], references: [id], onDelete: SetNull)
+  notes      String?
+  trades     Trade[]
+
+  @@index([accountId])
+}
+
+model Strategy {
+  id          String  @id @default(cuid())
+  name        String  @unique
+  description String?
+  trades      Trade[]
+}
+
+model Emotion {
+  id          String  @id @default(cuid())
+  name        String  @unique
+  score       Int     @default(0) // -5..+5
+  explanation String?
+  trades      Trade[]
+}
+
+model Trade {
+  id         String @id @default(cuid())
+  accountId  String
+  account    Account   @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  assetId    String
+  asset      Asset     @relation(fields: [assetId], references: [id])
+  strategyId String?
+  strategy   Strategy? @relation(fields: [strategyId], references: [id], onDelete: SetNull)
+  emotionId  String?
+  emotion    Emotion?  @relation(fields: [emotionId], references: [id], onDelete: SetNull)
+
+  direction       String    @default("LONG") // LONG | SHORT
+  size            Decimal
+  entryTime       DateTime
+  entryPrice      Decimal
+  stopLoss        Decimal?
+  takeProfit      Decimal?
+  exitTime        DateTime?
+  exitPrice       Decimal?
+  fees            Decimal   @default(0)
+
+  riskPct         Float?
+  capitalUsagePct Float?
+  confidence      Int? // 1..5
+  discipline      Int? // 1..5
+  status          String  @default("OPEN") // OPEN | CLOSED
+  notes           String? // markdown
+
+  createdAt   DateTime          @default(now())
+  screenshots TradeScreenshot[]
+  mistakes    TradeMistake[]
+
+  @@index([accountId])
+  @@index([assetId])
+  @@index([entryTime])
+}
+
+model TradeScreenshot {
+  id      String  @id @default(cuid())
+  tradeId String
+  trade   Trade   @relation(fields: [tradeId], references: [id], onDelete: Cascade)
+  url     String
+  caption String?
+  kind    String  @default("POST") // PRE | DURING | POST
+
+  @@index([tradeId])
+}
+
+model Mistake {
+  id          String         @id @default(cuid())
+  name        String         @unique
+  description String?
+  trades      TradeMistake[]
+}
+
+model TradeMistake {
+  tradeId   String
+  trade     Trade   @relation(fields: [tradeId], references: [id], onDelete: Cascade)
+  mistakeId String
+  mistake   Mistake @relation(fields: [mistakeId], references: [id], onDelete: Cascade)
+
+  @@id([tradeId, mistakeId])
+  @@index([mistakeId])
+}
+
+model WatchlistItem {
+  id           String   @id @default(cuid())
+  symbol       String
+  currentPrice Decimal?
+  goal         String?
+  technicals   String?
+  fundamentals String?
+  news         String?
+  source       String?
+  riskReward   String?
+  notes        String?
+  createdAt    DateTime @default(now())
+}
+
+// Single-row app settings.
+model Settings {
+  id              Int    @id @default(1)
+  currency        String @default("USD")
+  theme           String @default("system")
+  maxDrawdownPct  Float  @default(10)
+  profitTargetPct Float  @default(20)
+  winRatePct      Float  @default(50)
+}
