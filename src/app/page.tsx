@@ -34,6 +34,23 @@ export default async function DashboardPage() {
   const derivedList = trades.map((t) => t.derived);
   const summary = summarize(derivedList);
 
+  if (accounts.length === 0) {
+    return (
+      <div>
+        <PageHeader title="Dashboard" description="Your trading performance at a glance." />
+        <EmptyState
+          title="Create your first account"
+          description="Set up an account and assets to start journaling your trades."
+          action={
+            <Link href="/settings">
+              <Button>Go to setup</Button>
+            </Link>
+          }
+        />
+      </div>
+    );
+  }
+
   if (trades.length === 0) {
     return (
       <div>

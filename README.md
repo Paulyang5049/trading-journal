@@ -20,6 +20,12 @@ own machine with zero external services.
 All monetary math runs through `decimal.js` (no binary-float rounding), and every
 analytics formula is a pure function covered by unit tests.
 
+## Screenshots
+
+| Dashboard | Trade entry | Position calculator |
+| --- | --- | --- |
+| ![Dashboard](docs/img/dashboard.png) | ![Trade entry form](docs/img/trade-form.png) | ![Position-size calculator](docs/img/calculator.png) |
+
 ## Tech stack
 
 Next.js 16 (App Router) · TypeScript · Prisma 7 + SQLite · Tailwind CSS v4 · Recharts · Vitest
