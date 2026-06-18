@@ -15,7 +15,7 @@ import {
   Select,
   plClass,
 } from "@/components/ui";
-import { Plus } from "lucide-react";
+import { Plus, Upload } from "lucide-react";
 
 export default async function TradesPage({
   searchParams,
@@ -43,13 +43,26 @@ export default async function TradesPage({
         title="Trading Log"
         description="Where your trades tell their story."
         actions={
-          <Link href="/trades/new">
-            <Button>
-              <Plus size={16} /> New trade
-            </Button>
-          </Link>
+          <div className="flex items-center gap-2">
+            <Link href="/trades/import">
+              <Button variant="secondary">
+                <Upload size={16} /> Import CSV
+              </Button>
+            </Link>
+            <Link href="/trades/new">
+              <Button>
+                <Plus size={16} /> New trade
+              </Button>
+            </Link>
+          </div>
         }
       />
+
+      {sp.imported && (
+        <div className="mb-4 rounded-[var(--radius)] border border-positive/40 bg-positive/10 px-4 py-2.5 text-sm text-positive">
+          Imported {sp.imported} {sp.imported === "1" ? "trade" : "trades"} successfully.
+        </div>
+      )}
 
       <Card className="mb-4 p-3">
         <form className="grid grid-cols-2 gap-3 md:grid-cols-5" method="get">

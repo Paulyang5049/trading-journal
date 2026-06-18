@@ -11,6 +11,7 @@ own machine with zero external services.
 ## Features
 
 - **Trading Log** — log open/closed positions with live-computed P/L, RRR and duration; per-trade notes, chart screenshots, emotion, confidence/discipline scores and mistake tags.
+- **CSV import** — bulk-import trades from broker exports (generic, MetaTrader and IBKR column layouts are auto-detected) with a live preview before committing.
 - **Dashboard** — net P/L, win rate, profit factor, expectancy, max drawdown, equity curve, P/L distribution, day-of-week & hour-of-day breakdowns, and per-asset / per-strategy performance.
 - **Account Capital** — track deposits/withdrawals and an equity curve per account.
 - **Preparation** — a watchlist and a position-size / risk calculator.
@@ -62,7 +63,7 @@ npm run dev                 # http://localhost:3000
 ## Roadmap
 
 - Multi-user accounts + authentication
-- CSV import (MT4/5, IBKR, TradingView, …) and broker API sync
+- Broker API sync (CSV import already supported)
 - Shareable / public trade links
 - Mobile PWA
 - AI-assisted trade review
