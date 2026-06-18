@@ -1,36 +1,70 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Trading Journal
 
-## Getting Started
+A free, open-source, self-hostable trading journal & analytics app — a lightweight
+alternative to tools like [Tradervue](https://www.tradervue.com/). Log your trades,
+attach chart screenshots, tag mistakes and emotions, and see your performance broken
+down by win rate, R-multiple, drawdown, day-of-week, time-of-day, asset and strategy.
 
-First, run the development server:
+Built as a single Next.js app with a local SQLite database, so you can run it on your
+own machine with zero external services.
+
+## Features
+
+- **Trading Log** — log open/closed positions with live-computed P/L, RRR and duration; per-trade notes, chart screenshots, emotion, confidence/discipline scores and mistake tags.
+- **Dashboard** — net P/L, win rate, profit factor, expectancy, max drawdown, equity curve, P/L distribution, day-of-week & hour-of-day breakdowns, and per-asset / per-strategy performance.
+- **Account Capital** — track deposits/withdrawals and an equity curve per account.
+- **Preparation** — a watchlist and a position-size / risk calculator.
+- **Setup** — manage accounts, assets, strategies, emotions, mistakes and goals.
+- Dark / light theme.
+
+All monetary math runs through `decimal.js` (no binary-float rounding), and every
+analytics formula is a pure function covered by unit tests.
+
+## Tech stack
+
+Next.js 16 (App Router) · TypeScript · Prisma 7 + SQLite · Tailwind CSS v4 · Recharts · Vitest
+
+## Quickstart
+
+Requires Node.js 20+.
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
+cp .env.example .env
+npx prisma migrate dev      # create the SQLite database
+npm run db:seed             # optional: demo account + sample trades
+npm run dev                 # http://localhost:3000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Scripts
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+| Command | Description |
+| --- | --- |
+| `npm run dev` | Start the dev server |
+| `npm run build` / `npm start` | Production build / serve |
+| `npm test` | Run the unit tests (analytics + calculator) |
+| `npm run db:migrate` | Apply Prisma migrations |
+| `npm run db:seed` | Seed default data + demo trades |
+| `npm run lint` | Lint |
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Data & storage
 
-## Learn More
+- The database is a single SQLite file (`dev.db`) at the project root — easy to back up.
+- Uploaded screenshots are stored under `public/uploads/`.
+- To use PostgreSQL instead, see the notes in [`.env.example`](.env.example).
 
-To learn more about Next.js, take a look at the following resources:
+## Roadmap
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+- Multi-user accounts + authentication
+- CSV import (MT4/5, IBKR, TradingView, …) and broker API sync
+- Shareable / public trade links
+- Mobile PWA
+- AI-assisted trade review
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Contributing
 
-## Deploy on Vercel
+Contributions welcome — see [CONTRIBUTING.md](CONTRIBUTING.md).
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## License
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+[MIT](LICENSE)

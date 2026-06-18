@@ -82,6 +82,56 @@ async function main() {
     console.log(`Seeded demo account ${account.id} with ${account.assets.length} assets.`);
   }
 
+  // Demo trades so the dashboard has something to show on first run.
+  const tradeCount = await prisma.trade.count();
+  if (tradeCount === 0) {
+    const account = await prisma.account.findFirst({ include: { assets: true } });
+    const strat = await prisma.strategy.findFirst({ where: { name: "Breakout" } });
+    const emo = await prisma.emotion.findFirst({ where: { name: "Confident" } });
+    if (account && account.assets.length) {
+      const eur = account.assets[0].id;
+      const gbp = account.assets[1]?.id ?? eur;
+      const day = 24 * 60 * 60 * 1000;
+      const base = new Date("2024-01-02T09:30:00Z").getTime();
+      const samples = [
+        { assetId: eur, dir: "LONG", size: 10000, entry: 1.1, stop: 1.095, tp: 1.115, exit: 1.113, conf: 4, disc: 5 },
+        { assetId: gbp, dir: "SHORT", size: 8000, entry: 1.27, stop: 1.276, tp: 1.255, exit: 1.272, conf: 2, disc: 2 },
+        { assetId: eur, dir: "LONG", size: 12000, entry: 1.105, stop: 1.1, tp: 1.12, exit: 1.118, conf: 5, disc: 5 },
+        { assetId: eur, dir: "LONG", size: 9000, entry: 1.108, stop: 1.103, tp: 1.12, exit: 1.104, conf: 3, disc: 3 },
+        { assetId: gbp, dir: "LONG", size: 7000, entry: 1.26, stop: 1.254, tp: 1.275, exit: 1.271, conf: 4, disc: 4 },
+        { assetId: gbp, dir: "SHORT", size: 6000, entry: 1.275, stop: 1.281, tp: 1.26, exit: 1.258, conf: 4, disc: 4 },
+      ];
+      for (let i = 0; i < samples.length; i++) {
+        const s = samples[i];
+        const entryTime = new Date(base + i * day + i * 3600 * 1000);
+        const exitTime = new Date(entryTime.getTime() + (2 + i) * 3600 * 1000);
+        await prisma.trade.create({
+          data: {
+            accountId: account.id,
+            assetId: s.assetId,
+            strategyId: strat?.id,
+            emotionId: emo?.id,
+            direction: s.dir,
+            size: s.size,
+            entryTime,
+            entryPrice: s.entry,
+            stopLoss: s.stop,
+            takeProfit: s.tp,
+            exitTime,
+            exitPrice: s.exit,
+            fees: 2,
+            confidence: s.conf,
+            discipline: s.disc,
+            riskPct: 1,
+            capitalUsagePct: 40,
+            status: "CLOSED",
+          },
+        });
+      }
+      console.log(`Seeded ${samples.length} demo trades.`);
+    }
+  }
+
   console.log("Seed complete.");
 }
 
