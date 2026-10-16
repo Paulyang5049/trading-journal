@@ -1,11 +1,13 @@
 "use client";
 import { useActionState, useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { ArrowUpRight, ArrowDownRight } from "lucide-react";
 import { useRouter } from "next/navigation";
 import {
   closePosition,
   completeReview,
   removeTrade,
+  restoreTrade,
 } from "@/app/trades/workflow-actions";
 import { formatCurrency, formatNumber } from "@/lib/money";
 import { toLocalInput } from "@/lib/format";
@@ -29,6 +31,7 @@ export type WorkbenchTrade = {
   reviewed: boolean;
   leverage: number;
   margin: number;
+  deleted?: boolean;
 };
 export function TradeWorkbench({
   trades,
@@ -39,10 +42,13 @@ export function TradeWorkbench({
 }) {
   const [selected, setSelected] = useState<string | null>(initialId ?? null);
   const [sort, setSort] = useState("recent");
+  const [removed, setRemoved] = useState<{ id: string; symbol: string } | null>(
+    null,
+  );
   const dialog = useRef<HTMLDialogElement>(null);
   const trade = trades.find((t) => t.id === selected);
   useEffect(() => {
-    if (trade) dialog.current?.showModal();
+    if (trade && !trade.deleted) dialog.current?.showModal();
     else dialog.current?.close();
   }, [trade]);
   const ordered = [...trades].sort((a, b) =>
@@ -50,6 +56,13 @@ export function TradeWorkbench({
   );
   return (
     <section>
+      {removed && (
+        <UndoTradeNotice
+          key={removed.id}
+          trade={removed}
+          onDone={() => setRemoved(null)}
+        />
+      )}
       <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
         <p className="text-sm text-muted">
           {trades.length} {trades.length === 1 ? "trade" : "trades"} · Select a
@@ -65,7 +78,7 @@ export function TradeWorkbench({
           <option value="pnl">Highest net P/L</option>
         </select>
       </div>
-      <div className="overflow-auto rounded-xl border bg-surface">
+      <div className="hidden overflow-auto rounded-xl border bg-surface xl:block">
         <table className="w-full min-w-[780px] text-sm">
           <thead className="bg-surface-2 text-left text-xs text-muted">
             <tr>
@@ -90,6 +103,7 @@ export function TradeWorkbench({
                   <button
                     className="text-left font-semibold text-primary"
                     onClick={() => setSelected(t.id)}
+                    disabled={t.deleted}
                   >
                     {t.symbol}
                     <span
@@ -129,10 +143,14 @@ export function TradeWorkbench({
                 </td>
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-1 whitespace-nowrap">
-                    <Button variant="ghost" onClick={() => setSelected(t.id)}>
+                    <Button
+                      variant="ghost"
+                      disabled={t.deleted}
+                      onClick={() => setSelected(t.id)}
+                    >
                       {t.status === "OPEN" ? "Details / close" : "Review"}
                     </Button>
-                    <DeleteTradeButton trade={t} />
+                    <DeleteTradeButton trade={t} onRemoved={setRemoved} />
                   </div>
                 </td>
               </tr>
@@ -142,6 +160,79 @@ export function TradeWorkbench({
         {!trades.length && (
           <p className="p-12 text-center text-sm text-muted">
             No matching trades. Adjust your filters or log a new trade.
+          </p>
+        )}
+      </div>
+      <div className="grid gap-3 sm:grid-cols-2 xl:hidden">
+        {ordered.map((t) => (
+          <article
+            key={t.id}
+            className="rounded-2xl border bg-surface p-4 shadow-sm"
+          >
+            <div className="flex items-start justify-between gap-3">
+              <button
+                onClick={() => setSelected(t.id)}
+                disabled={t.deleted}
+                className="text-left"
+              >
+                <span className="text-base font-semibold">{t.symbol}</span>
+                <span className="mt-1 block text-xs text-muted">
+                  {t.account} · {t.strategy}
+                </span>
+              </button>
+              <span
+                className={`rounded-full px-2.5 py-1 text-xs font-medium ${t.deleted ? "bg-surface-2 text-muted" : t.status === "OPEN" ? "bg-primary/10 text-primary" : t.reviewed ? "bg-positive/10 text-positive" : "bg-warning/10 text-warning"}`}
+              >
+                {t.deleted
+                  ? "In Trash"
+                  : t.status === "OPEN"
+                    ? "Open"
+                    : t.reviewed
+                      ? "Reviewed"
+                      : "To review"}
+              </span>
+            </div>
+            <div className="my-4 flex items-center justify-between gap-3 rounded-xl bg-surface-2/60 p-3">
+              <span className="flex items-center gap-1.5 text-xs text-muted">
+                {t.direction === "LONG" ? (
+                  <ArrowUpRight size={16} className="text-positive" />
+                ) : (
+                  <ArrowDownRight size={16} className="text-negative" />
+                )}
+                {t.direction} · {t.leverage}×
+              </span>
+              <span
+                className={`font-semibold tabular-nums ${plClass(t.netPL)}`}
+              >
+                {t.status === "CLOSED"
+                  ? formatCurrency(t.netPL, t.currency)
+                  : "Open position"}
+              </span>
+            </div>
+            <div className="flex justify-between gap-3 text-xs text-muted">
+              <span title={String(t.size)}>
+                {new Intl.NumberFormat("en-US", {
+                  maximumSignificantDigits: 8,
+                }).format(t.size)}{" "}
+                units
+              </span>
+              <time dateTime={t.entryTime}>
+                {new Date(t.entryTime).toLocaleDateString()}
+              </time>
+            </div>
+            <div className="mt-4 flex items-center justify-between border-t pt-3">
+              {!t.deleted && (
+                <Button variant="secondary" onClick={() => setSelected(t.id)}>
+                  {t.status === "OPEN" ? "Details / close" : "Review trade"}
+                </Button>
+              )}
+              <DeleteTradeButton trade={t} onRemoved={setRemoved} />
+            </div>
+          </article>
+        ))}
+        {!trades.length && (
+          <p className="col-span-full rounded-2xl border border-dashed px-6 py-12 text-center text-sm text-muted">
+            No matching trades. Try another symbol or clear your filters.
           </p>
         )}
       </div>
@@ -296,19 +387,36 @@ function WorkflowForm({ trade }: { trade: WorkbenchTrade }) {
   );
 }
 
-function DeleteTradeButton({ trade }: { trade: WorkbenchTrade }) {
+function DeleteTradeButton({
+  trade,
+  onRemoved,
+}: {
+  trade: WorkbenchTrade;
+  onRemoved: (trade: { id: string; symbol: string }) => void;
+}) {
   const router = useRouter();
-  const [state, action, pending] = useActionState(removeTrade, {});
-  useEffect(() => {
-    if (state.success) router.refresh();
-  }, [state.success, router]);
+  const [state, action, pending] = useActionState(
+    async (previous: { error?: string; success?: string }, form: FormData) => {
+      const result = await (trade.deleted ? restoreTrade : removeTrade)(
+        previous,
+        form,
+      );
+      if (result.success) {
+        if (!trade.deleted) onRemoved({ id: trade.id, symbol: trade.symbol });
+        router.refresh();
+      }
+      return result;
+    },
+    {},
+  );
   return (
     <form
       action={action}
       onSubmit={(event) => {
         if (
+          !trade.deleted &&
           !window.confirm(
-            `Delete the ${trade.symbol} trade from ${trade.account}? This cannot be undone.`,
+            `Move the ${trade.symbol} trade from ${trade.account} to Trash? You can restore it later.`,
           )
         ) {
           event.preventDefault();
@@ -320,10 +428,10 @@ function DeleteTradeButton({ trade }: { trade: WorkbenchTrade }) {
         variant="ghost"
         type="submit"
         disabled={pending}
-        aria-label={`Delete ${trade.symbol} trade`}
-        className="text-negative"
+        aria-label={`${trade.deleted ? "Restore" : "Delete"} ${trade.symbol} trade`}
+        className={trade.deleted ? "text-primary" : "text-negative"}
       >
-        {pending ? "Deleting…" : "Delete"}
+        {pending ? "Saving…" : trade.deleted ? "Restore" : "Delete"}
       </Button>
       {state.error && (
         <p
@@ -334,5 +442,53 @@ function DeleteTradeButton({ trade }: { trade: WorkbenchTrade }) {
         </p>
       )}
     </form>
+  );
+}
+
+function UndoTradeNotice({
+  trade,
+  onDone,
+}: {
+  trade: { id: string; symbol: string };
+  onDone: () => void;
+}) {
+  const router = useRouter();
+  const [state, action, pending] = useActionState(
+    async (previous: { error?: string; success?: string }, form: FormData) => {
+      const result = await restoreTrade(previous, form);
+      if (result.success) {
+        onDone();
+        router.refresh();
+      }
+      return result;
+    },
+    {},
+  );
+  return (
+    <div
+      role="status"
+      className="mb-4 flex flex-wrap items-center gap-3 rounded-xl border border-primary/20 bg-primary/5 px-4 py-3 text-sm"
+    >
+      <span className="mr-auto">{trade.symbol} moved to Trash.</span>
+      <form action={action}>
+        <input type="hidden" name="id" value={trade.id} />
+        <Button variant="secondary" type="submit" disabled={pending}>
+          {pending ? "Restoring…" : "Undo deletion"}
+        </Button>
+      </form>
+      <button
+        type="button"
+        className="p-1 text-muted"
+        onClick={onDone}
+        aria-label="Dismiss deletion notice"
+      >
+        ✕
+      </button>
+      {state.error && (
+        <p role="alert" className="w-full text-negative">
+          {state.error}
+        </p>
+      )}
+    </div>
   );
 }

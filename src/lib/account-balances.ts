@@ -12,6 +12,7 @@ export async function accountBalances() {
   return accounts.map((a) => ({
     id: a.id,
     label: a.name,
+    assetClass: a.assetClass,
     currency: a.currency,
     equity: events
       .filter((e) => e.accountId === a.id)

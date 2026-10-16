@@ -90,6 +90,7 @@ model Trade {
   exitFees        Decimal   @default(0)
   fees            Decimal   @default(0)
 
+  deletedAt       DateTime?
   reviewedAt      DateTime?
   riskPct         Float?
   capitalUsagePct Float?

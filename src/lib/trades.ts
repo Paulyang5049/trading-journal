@@ -63,6 +63,8 @@ export interface TradeFilters {
   strategyId?: string;
   status?: string;
   review?: boolean;
+  trash?: boolean;
+  search?: string;
   from?: string;
   to?: string;
   exitDate?: string;
@@ -81,6 +83,9 @@ export async function getFormOptions() {
     accounts: accounts.map((a) => ({ id: a.id, label: a.name })),
     assets: assets.map((a) => ({
       id: a.id,
+      symbol: a.symbol,
+      assetClass: a.assetClass,
+      accountId: a.accountId,
       label: `${a.symbol} (${a.assetClass})`,
     })),
     strategies: strategies.map((s) => ({ id: s.id, label: s.name })),
@@ -92,7 +97,11 @@ export async function getFormOptions() {
 export async function getTrades(
   filters: TradeFilters = {},
 ): Promise<TradeWithDerived[]> {
-  const where: Record<string, unknown> = {};
+  const where: Record<string, unknown> = {
+    deletedAt: filters.trash ? { not: null } : null,
+  };
+  if (filters.search?.trim())
+    where.asset = { symbol: { contains: filters.search.trim() } };
   if (filters.accountId) where.accountId = filters.accountId;
   if (filters.assetId) where.assetId = filters.assetId;
   if (filters.strategyId) where.strategyId = filters.strategyId;

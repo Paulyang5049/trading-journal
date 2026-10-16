@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { positionRisk, validDay } from "./workspace";
+import { positionRisk, validDay, sizeFromMargin } from "./workspace";
 it("links margin and risk to the selected account without multiplying losses by leverage", () => {
   const r = positionRisk(400, 3.56, 421, 405, 5)!;
   expect(r.riskAmount).toBe(56.96);
@@ -25,4 +25,12 @@ it("calculates units from margin and uses margin for capital usage", async () =>
   expect(r.capitalUsagePct).toBe(10);
   expect(r.notionalUsagePct).toBe(50);
   expect(sizeFromMargin(100, 5, 0)).toBeNull();
+});
+
+it("rounds down to a quantity step without exceeding margin", () => {
+  expect(sizeFromMargin(100, 5, 279, 0.01)).toBe(1.79);
+  expect(sizeFromMargin(1, 1, 3, 0.1)).toBe(0.3);
+  expect(sizeFromMargin(0.01, 1, 100, 0.01)).toBeNull();
+  expect(sizeFromMargin(100, 5, 279, 0)).toBeNull();
+  expect(sizeFromMargin(100, 5, 279, NaN)).toBeNull();
 });

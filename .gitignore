@@ -53,3 +53,6 @@ next-env.d.ts
 
 # reference material (third-party, kept local only)
 /docs/reference/
+
+# private journal safety backups
+/backups/

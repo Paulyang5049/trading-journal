@@ -19,7 +19,7 @@ own machine with zero external services.
 - Dark / light theme.
 - **Trading calendar** — browse monthly realized P/L by UTC exit date and open the underlying trades for any active day.
 - **Review & lessons** — compare planned and actual R alongside confidence, discipline, and trade notes.
-- **Currency-aware dashboard** — filter by currency and account so balances in different currencies are never added together. Dashboard metrics cover all time; the calendar has its own month navigation.
+- **Currency-aware dashboard** — filter by currency and account so balances in different currencies are never added together. Dashboard trade metrics follow the selected filters; account equity stays all-time and the calendar has its own month navigation.
 - **Responsive workspace** — light theme by default, with a desktop sidebar and horizontal navigation on smaller screens.
 
 All monetary math runs through `decimal.js` (no binary-float rounding), and every
@@ -34,6 +34,15 @@ analytics formula is a pure function covered by unit tests.
 5. Account, asset, strategy, and UTC entry-date filters carry between Dashboard and Trading Log through navigation. Calendar drill-down adds a UTC exit-date filter. Account equity and drawdown remain explicitly all-time.
 
 Bybit transaction-log imports support opening fills, with explicit UTC / UTC+8 selection, wallet-row exclusions, and duplicate TradeId detection within the selected account. Symbols with closing fills require a complete trade-history export; this version does not reconstruct partial exits. Leverage and stop/target values missing from the export must be reviewed after import.
+
+## Journal controls
+
+- Type a symbol directly in **New trade**. Existing symbols are suggested; new symbols are normalized and saved with the trade under the selected account and asset class. No asset setup is required.
+- Enter cost, leverage and entry price to calculate size. An optional **Quantity step** rounds down to the exchange increment you enter; risk and capital usage use the resulting size. Steps are entered manually and are not fetched from an exchange.
+- Search symbols in **Trading Log**, apply account/date/strategy filters, then give the applied view a name. Saved views are stored in that browser.
+- **Delete** moves a trade to **Trash**. Restore it from that tab at any time, including its screenshots and review. Trashed trades are excluded from performance, account equity and review queues.
+- In **Settings → Backup & restore**, download the complete SQLite journal as a JSON file, including uploaded PNG/JPEG/WebP screenshots and Trash. Restore replaces the current journal in one database transaction. Invalid files are rejected; failed database restores roll back.
+- A safety copy is saved in the local `backups/` folder before each restore. Restore one by choosing that JSON file in the same panel. Keep downloaded backups private. Backups require a matching database schema and are limited to 50 MB; filter presets stay in the browser. Remote screenshot links are preserved as links.
 
 ## Screenshots
 

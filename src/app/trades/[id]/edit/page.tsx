@@ -16,7 +16,7 @@ export default async function EditTradePage({
   const balances = await accountBalances();
   const [trade, options] = await Promise.all([
     prisma.trade.findUnique({
-      where: { id },
+      where: { id, deletedAt: null },
       include: { mistakes: true },
     }),
     getFormOptions(),

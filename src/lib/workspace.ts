@@ -39,6 +39,7 @@ export function sizeFromMargin(
   cost: number,
   leverage: number,
   entry: number,
+  step?: number,
 ): number | null {
   if (
     ![cost, leverage, entry].every(Number.isFinite) ||
@@ -47,5 +48,11 @@ export function sizeFromMargin(
     entry <= 0
   )
     return null;
-  return dec(cost).times(leverage).div(entry).toNumber();
+  const raw = dec(cost).times(leverage).div(entry);
+  if (step != null) {
+    if (!Number.isFinite(step) || step <= 0) return null;
+    const rounded = raw.div(step).floor().times(step);
+    return rounded.gt(0) ? rounded.toNumber() : null;
+  }
+  return raw.toNumber();
 }

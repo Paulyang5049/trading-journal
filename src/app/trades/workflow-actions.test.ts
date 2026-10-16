@@ -1,14 +1,18 @@
 import { beforeEach, expect, it, vi } from "vitest";
-const { findUnique, updateMany, deleteMany } = vi.hoisted(() => ({
+const { findUnique, updateMany } = vi.hoisted(() => ({
   findUnique: vi.fn(),
   updateMany: vi.fn(),
-  deleteMany: vi.fn(),
 }));
 vi.mock("@/lib/db", () => ({
-  prisma: { trade: { findUnique, updateMany, deleteMany } },
+  prisma: { trade: { findUnique, updateMany } },
 }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
-import { closePosition, completeReview, removeTrade } from "./workflow-actions";
+import {
+  closePosition,
+  completeReview,
+  removeTrade,
+  restoreTrade,
+} from "./workflow-actions";
 const form = (data: Record<string, string>) => {
   const f = new FormData();
   Object.entries(data).forEach(([k, v]) => f.set(k, v));
@@ -51,7 +55,7 @@ it("closes only open positions and resets review status", async () => {
   ).toBeTruthy();
   expect(updateMany).toHaveBeenCalledWith(
     expect.objectContaining({
-      where: { id: "t", status: "OPEN" },
+      where: { id: "t", status: "OPEN", deletedAt: null },
       data: expect.objectContaining({
         exitFees: 2,
         reviewedAt: null,
@@ -88,18 +92,30 @@ it("requires a lesson and valid scores to complete review", async () => {
 
 it("rejects a missing deletion id without touching trades", async () => {
   expect((await removeTrade({}, form({}))).error).toBeTruthy();
-  expect(deleteMany).not.toHaveBeenCalled();
+  expect(updateMany).not.toHaveBeenCalled();
 });
-it("deletes only the selected trade and tolerates stale repeat submissions", async () => {
+it("moves only the selected trade to Trash and tolerates stale repeat submissions", async () => {
   for (const count of [1, 0]) {
-    deleteMany.mockResolvedValueOnce({ count });
+    updateMany.mockResolvedValueOnce({ count });
     expect((await removeTrade({}, form({ id: "t" }))).success).toBeTruthy();
   }
-  expect(deleteMany).toHaveBeenCalledWith({ where: { id: "t" } });
+  expect(updateMany).toHaveBeenCalledWith({
+    where: { id: "t", deletedAt: null },
+    data: { deletedAt: expect.any(Date) },
+  });
 });
 it("returns a recoverable message when deletion fails", async () => {
-  deleteMany.mockRejectedValueOnce(new Error("database unavailable"));
+  updateMany.mockRejectedValueOnce(new Error("database unavailable"));
   expect((await removeTrade({}, form({ id: "t" }))).error).toContain(
     "try again",
   );
+});
+
+it("restores a selected trade without losing its linked records", async () => {
+  updateMany.mockResolvedValueOnce({ count: 1 });
+  expect((await restoreTrade({}, form({ id: "t" }))).success).toBeTruthy();
+  expect(updateMany).toHaveBeenCalledWith({
+    where: { id: "t", deletedAt: { not: null } },
+    data: { deletedAt: null },
+  });
 });

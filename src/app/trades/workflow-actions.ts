@@ -36,7 +36,7 @@ export async function closePosition(
   if (time < trade.entryTime)
     return { error: "Exit time cannot be before entry time." };
   const result = await prisma.trade.updateMany({
-    where: { id, status: "OPEN" },
+    where: { id, status: "OPEN", deletedAt: null },
     data: {
       exitPrice: price,
       exitFees: fees,
@@ -67,7 +67,7 @@ export async function completeReview(
       error: "Add a lesson and confidence / discipline scores between 1 and 5.",
     };
   const result = await prisma.trade.updateMany({
-    where: { id, status: "CLOSED" },
+    where: { id, status: "CLOSED", deletedAt: null },
     data: { notes, confidence, discipline, reviewedAt: new Date() },
   });
   if (!result.count) return { error: "Only closed trades can be reviewed." };
@@ -82,10 +82,31 @@ export async function removeTrade(
   const id = String(form.get("id") ?? "").trim();
   if (!id) return { error: "Select a trade to delete." };
   try {
-    await prisma.trade.deleteMany({ where: { id } });
+    await prisma.trade.updateMany({
+      where: { id, deletedAt: null },
+      data: { deletedAt: new Date() },
+    });
   } catch {
     return { error: "Could not delete this trade. Please try again." };
   }
   refresh(id);
-  return { success: "Trade deleted." };
+  return { success: "Moved to Trash. You can restore it any time." };
+}
+
+export async function restoreTrade(
+  _state: { error?: string; success?: string },
+  form: FormData,
+): Promise<{ error?: string; success?: string }> {
+  const id = String(form.get("id") ?? "").trim();
+  if (!id) return { error: "Select a trade to restore." };
+  try {
+    await prisma.trade.updateMany({
+      where: { id, deletedAt: { not: null } },
+      data: { deletedAt: null },
+    });
+  } catch {
+    return { error: "Could not restore this trade. Please try again." };
+  }
+  refresh(id);
+  return { success: "Trade restored." };
 }

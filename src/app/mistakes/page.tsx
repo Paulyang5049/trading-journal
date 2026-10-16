@@ -20,7 +20,9 @@ import { createMistake, deleteMistake } from "./actions";
 export default async function MistakesPage() {
   const mistakes = await prisma.mistake.findMany({
     orderBy: { name: "asc" },
-    include: { _count: { select: { trades: true } } },
+    include: {
+      _count: { select: { trades: { where: { trade: { deletedAt: null } } } } },
+    },
   });
 
   const pending = await getTrades({ review: true });
