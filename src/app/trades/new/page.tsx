@@ -1,14 +1,23 @@
 export const dynamic = "force-dynamic";
 
 import Link from "next/link";
+import { accountBalances } from "@/lib/account-balances";
 import { prisma } from "@/lib/db";
 import { getFormOptions } from "@/lib/trades";
 import { PageHeader, EmptyState, Button } from "@/components/ui";
 import { TradeForm } from "@/components/trade-form";
 import { createTrade } from "../actions";
 
-export default async function NewTradePage() {
+export default async function NewTradePage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | undefined>>;
+}) {
+  const sp = await searchParams;
+  const value = (key: string) =>
+    sp[key] && Number.isFinite(Number(sp[key])) ? Number(sp[key]) : undefined;
   const options = await getFormOptions();
+  const balances = await accountBalances();
   const accountCount = await prisma.account.count();
   const assetCount = await prisma.asset.count();
 
@@ -32,7 +41,25 @@ export default async function NewTradePage() {
   return (
     <div>
       <PageHeader title="New trade" description="Log a new position." />
-      <TradeForm action={createTrade} {...options} />
+      <TradeForm
+        action={createTrade}
+        {...options}
+        accounts={balances}
+        initial={{
+          accountId: options.accounts.some((a) => a.id === sp.account)
+            ? sp.account
+            : undefined,
+          assetId: options.assets.some((a) => a.id === sp.asset)
+            ? sp.asset
+            : undefined,
+          direction: sp.direction === "SHORT" ? "SHORT" : "LONG",
+          size: value("size"),
+          entryPrice: value("entry"),
+          stopLoss: value("stop"),
+          takeProfit: value("target"),
+          leverage: value("leverage"),
+        }}
+      />
     </div>
   );
 }

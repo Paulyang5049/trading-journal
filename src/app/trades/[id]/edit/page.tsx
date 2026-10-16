@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import { accountBalances } from "@/lib/account-balances";
 import { prisma } from "@/lib/db";
 import { getFormOptions } from "@/lib/trades";
 import { toLocalInput } from "@/lib/format";
@@ -12,6 +13,7 @@ export default async function EditTradePage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
+  const balances = await accountBalances();
   const [trade, options] = await Promise.all([
     prisma.trade.findUnique({
       where: { id },
@@ -49,7 +51,12 @@ export default async function EditTradePage({
   return (
     <div>
       <PageHeader title="Edit trade" />
-      <TradeForm action={updateTrade} {...options} initial={initial} />
+      <TradeForm
+        action={updateTrade}
+        {...options}
+        accounts={balances}
+        initial={initial}
+      />
     </div>
   );
 }

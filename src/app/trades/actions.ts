@@ -5,6 +5,8 @@ import { redirect } from "next/navigation";
 import { randomUUID } from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { accountBalances } from "@/lib/account-balances";
+import { positionRisk } from "@/lib/workspace";
 import { prisma } from "@/lib/db";
 
 function s(form: FormData, key: string): string {
@@ -27,7 +29,7 @@ function dateOrNull(form: FormData, key: string): Date | null {
   return isNaN(d.getTime()) ? null : d;
 }
 
-function buildData(form: FormData) {
+async function buildData(form: FormData) {
   const rawLeverage = s(form, "leverage");
   const leverage = rawLeverage === "" ? 1 : Number(rawLeverage);
   if (!Number.isFinite(leverage) || leverage < 1) {
@@ -35,6 +37,16 @@ function buildData(form: FormData) {
   }
   const exitPrice = numOrNull(form, "exitPrice");
   const exitTime = dateOrNull(form, "exitTime");
+  const balance = (await accountBalances()).find(
+    (a) => a.id === s(form, "accountId"),
+  );
+  const risk = positionRisk(
+    balance?.equity ?? 0,
+    numOrNull(form, "size") ?? 0,
+    numOrNull(form, "entryPrice") ?? 0,
+    numOrNull(form, "stopLoss"),
+    leverage,
+  );
   // A trade is CLOSED once it has an exit price.
   const status = exitPrice != null ? "CLOSED" : "OPEN";
   return {
@@ -53,8 +65,8 @@ function buildData(form: FormData) {
     exitPrice,
     fees: numOrNull(form, "fees") ?? 0,
     exitFees: numOrNull(form, "exitFees") ?? 0,
-    riskPct: numOrNull(form, "riskPct"),
-    capitalUsagePct: numOrNull(form, "capitalUsagePct"),
+    riskPct: risk?.riskPct ?? null,
+    capitalUsagePct: risk?.capitalUsagePct ?? null,
     confidence: numOrNull(form, "confidence"),
     discipline: numOrNull(form, "discipline"),
     notes: opt(form, "notes"),
@@ -116,7 +128,7 @@ async function prepareScreenshots(form: FormData) {
 }
 
 export async function createTrade(form: FormData) {
-  const data = buildData(form);
+  const data = await buildData(form);
   if (!data.accountId || !data.assetId) return;
   const screenshots = await prepareScreenshots(form);
   const trade = await prisma.trade.create({
@@ -125,13 +137,16 @@ export async function createTrade(form: FormData) {
   await syncMistakes(trade.id, form);
   revalidatePath("/trades");
   revalidatePath("/");
+  revalidatePath("/accounts");
+  revalidatePath("/preparation");
+  revalidatePath("/mistakes");
   redirect(`/trades/${trade.id}`);
 }
 
 export async function updateTrade(form: FormData) {
   const id = s(form, "id");
   if (!id) return;
-  const data = buildData(form);
+  const data = await buildData(form);
   const screenshots = await prepareScreenshots(form);
   await prisma.trade.update({
     where: { id },
@@ -141,6 +156,9 @@ export async function updateTrade(form: FormData) {
   revalidatePath("/trades");
   revalidatePath(`/trades/${id}`);
   revalidatePath("/");
+  revalidatePath("/accounts");
+  revalidatePath("/preparation");
+  revalidatePath("/mistakes");
   redirect(`/trades/${id}`);
 }
 
@@ -149,6 +167,9 @@ export async function deleteTrade(form: FormData) {
   await prisma.trade.delete({ where: { id } });
   revalidatePath("/trades");
   revalidatePath("/");
+  revalidatePath("/accounts");
+  revalidatePath("/preparation");
+  revalidatePath("/mistakes");
   redirect("/trades");
 }
 

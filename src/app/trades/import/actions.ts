@@ -15,7 +15,10 @@ export async function importTrades(form: FormData) {
   const csv = String(form.get("csv") ?? "");
   if (!accountId || !csv.trim()) return;
 
-  const { rows } = parseTradesCsv(csv);
+  const { rows } = parseTradesCsv(
+    csv,
+    String(form.get("bybitOffset") ?? "+00:00"),
+  );
   if (rows.length === 0) {
     redirect(`/trades/import?error=norows`);
   }
@@ -25,7 +28,9 @@ export async function importTrades(form: FormData) {
   const account = await prisma.account.findUnique({ where: { id: accountId } });
   const assetIdBySymbol = new Map<string, string>();
   for (const symbol of symbols) {
-    const existing = await prisma.asset.findFirst({ where: { symbol, accountId } });
+    const existing = await prisma.asset.findFirst({
+      where: { symbol, accountId },
+    });
     if (existing) {
       assetIdBySymbol.set(symbol, existing.id);
     } else {
@@ -37,7 +42,9 @@ export async function importTrades(form: FormData) {
   }
 
   // Resolve strategies by name (create missing ones).
-  const strategyNames = [...new Set(rows.map((r) => r.strategy).filter(Boolean))] as string[];
+  const strategyNames = [
+    ...new Set(rows.map((r) => r.strategy).filter(Boolean)),
+  ] as string[];
   const strategyIdByName = new Map<string, string>();
   for (const name of strategyNames) {
     const strat = await prisma.strategy.upsert({
@@ -48,9 +55,17 @@ export async function importTrades(form: FormData) {
     strategyIdByName.set(name, strat.id);
   }
 
-  await prisma.$transaction(
-    rows.map((r) =>
-      prisma.trade.create({
+  const imported = await prisma.$transaction(async (tx) => {
+    let count = 0;
+    for (const r of rows) {
+      if (
+        r.sourceId &&
+        (await tx.trade.findFirst({
+          where: { accountId, notes: { contains: `[${r.sourceId}]` } },
+        }))
+      )
+        continue;
+      await tx.trade.create({
         data: {
           accountId,
           assetId: assetIdBySymbol.get(r.symbol)!,
@@ -67,12 +82,14 @@ export async function importTrades(form: FormData) {
           notes: r.notes,
           status: r.exitPrice != null ? "CLOSED" : "OPEN",
         },
-      }),
-    ),
-  );
+      });
+      count++;
+    }
+    return count;
+  });
 
   revalidatePath("/trades");
   revalidatePath("/");
   revalidatePath("/accounts");
-  redirect(`/trades?imported=${rows.length}`);
+  redirect(`/trades?imported=${imported}`);
 }

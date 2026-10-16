@@ -23,6 +23,7 @@ export default async function MistakesPage() {
     include: { _count: { select: { trades: true } } },
   });
 
+  const pending = await getTrades({ review: true });
   const reviewed = (await getTrades()).filter(
     (t) => t.row.notes || t.row.confidence != null || t.row.discipline != null,
   );
@@ -33,6 +34,24 @@ export default async function MistakesPage() {
         description="Connect your results to your decisions. Build better trading habits."
       />
 
+      <Card className="border-primary/20 bg-primary/5">
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <h2 className="font-semibold">
+              {pending.length} trades waiting for review
+            </h2>
+            <p className="mt-1 text-sm text-muted">
+              Record a lesson and score your execution to complete a review.
+            </p>
+          </div>
+          <Link
+            href="/trades?status=CLOSED&review=pending"
+            className="rounded-lg bg-primary px-4 py-2 text-sm text-white"
+          >
+            Open review queue →
+          </Link>
+        </div>
+      </Card>
       <div className="grid gap-4 sm:grid-cols-3">
         <Card>
           <p className="text-xs text-muted">Trades with review details</p>

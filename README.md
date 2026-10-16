@@ -25,6 +25,16 @@ own machine with zero external services.
 All monetary math runs through `decimal.js` (no binary-float rounding), and every
 analytics formula is a pure function covered by unit tests.
 
+## Connected trading workflow
+
+1. In **Preparation**, choose an account and asset. The calculator uses realized account equity (capital events plus closed-trade net P/L), then carries the position size, direction, entry, stop, target and leverage into **Create trade**.
+2. The trade form recalculates risk and margin against the selected account. Saved risk percentages are calculated on the server; they are snapshots of current realized equity, not historical entry-time equity.
+3. In **Trading Log**, use **Open positions**, **Closed**, or **To review**. Select a symbol to open the keyboard-accessible detail panel, close a position, or complete a review.
+4. Closing a position requires an exit price and time and accepts exit fees. A completed review requires notes plus confidence and discipline scores. Existing closed trades start unreviewed.
+5. Account, asset, strategy, and UTC entry-date filters carry between Dashboard and Trading Log through navigation. Calendar drill-down adds a UTC exit-date filter. Account equity and drawdown remain explicitly all-time.
+
+Bybit transaction-log imports support opening fills, with explicit UTC / UTC+8 selection, wallet-row exclusions, and duplicate TradeId detection within the selected account. Symbols with closing fills require a complete trade-history export; this version does not reconstruct partial exits. Leverage and stop/target values missing from the export must be reviewed after import.
+
 ## Screenshots
 
 | Dashboard | Trade entry | Position calculator |

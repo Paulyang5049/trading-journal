@@ -11,9 +11,13 @@ type DayTrade = { id: string; date: string; symbol: string; netPL: number };
 export function PnlCalendar({
   trades,
   currency,
+  accountId,
+  filters = {},
 }: {
   trades: DayTrade[];
   currency: string;
+  accountId?: string;
+  filters?: Record<string, string | undefined>;
 }) {
   const [month, setMonth] = useState(() =>
     (
@@ -118,6 +122,12 @@ export function PnlCalendar({
       </div>
       {selected && (
         <div className="mt-4 border-t pt-3">
+          <Link
+            className="mb-3 block text-sm text-primary"
+            href={`/trades?${new URLSearchParams(Object.entries({ ...filters, account: accountId, exitDate: selected }).filter((e): e is [string, string] => typeof e[1] === "string"))}`}
+          >
+            View this day in journal →
+          </Link>
           <p className="mb-2 text-xs text-muted">Trades closed on {selected}</p>
           {monthly
             .filter((t) => t.date === selected)

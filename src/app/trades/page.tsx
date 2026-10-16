@@ -1,20 +1,8 @@
 import Link from "next/link";
 import { prisma } from "@/lib/db";
 import { getTrades, type TradeFilters } from "@/lib/trades";
-import { formatCurrency, formatNumber } from "@/lib/money";
-import { formatDateTime, formatDuration } from "@/lib/format";
-import {
-  PageHeader,
-  Button,
-  Card,
-  Table,
-  Th,
-  Td,
-  Badge,
-  EmptyState,
-  Select,
-  plClass,
-} from "@/components/ui";
+import { PageHeader, Button, Card, Input, Select } from "@/components/ui";
+import { TradeWorkbench } from "@/components/trade-workbench";
 import { Plus, Upload } from "lucide-react";
 
 export default async function TradesPage({
@@ -28,6 +16,10 @@ export default async function TradesPage({
     assetId: sp.asset || undefined,
     strategyId: sp.strategy || undefined,
     status: sp.status || undefined,
+    review: sp.review === "pending",
+    from: sp.from,
+    to: sp.to,
+    exitDate: sp.exitDate,
   };
 
   const [trades, accounts, assets, strategies] = await Promise.all([
@@ -76,9 +68,46 @@ export default async function TradesPage({
         </div>
       )}
 
+      <div className="mb-5 flex gap-2 border-b pb-3">
+        {[
+          { label: "All trades", status: "", review: "" },
+          { label: "Open positions", status: "OPEN", review: "" },
+          { label: "Closed", status: "CLOSED", review: "" },
+          { label: "To review", status: "CLOSED", review: "pending" },
+        ].map((tab) => {
+          const query = new URLSearchParams(
+            Object.entries(sp).filter(
+              (item): item is [string, string] => typeof item[1] === "string",
+            ),
+          );
+          query.delete("selected");
+          query.set("status", tab.status);
+          query.set("review", tab.review);
+          const active =
+            (sp.status ?? "") === tab.status &&
+            (sp.review ?? "") === tab.review;
+          return (
+            <Link
+              key={tab.label}
+              href={`/trades?${query}`}
+              className={`rounded-lg px-4 py-2 text-sm ${active ? "bg-primary text-white" : "text-muted hover:bg-surface-2"}`}
+            >
+              {tab.label}
+            </Link>
+          );
+        })}
+      </div>
       <Card className="mb-4 p-3">
         <form className="grid grid-cols-2 gap-3 md:grid-cols-5" method="get">
-          <Select name="account" defaultValue={sp.account ?? ""}>
+          <input type="hidden" name="review" value={sp.review ?? ""} />
+          <input type="hidden" name="exitDate" value={sp.exitDate ?? ""} />
+          <FieldFilter name="from" label="Entry from (UTC)" value={sp.from} />
+          <FieldFilter name="to" label="Entry to (UTC)" value={sp.to} />
+          <Select
+            aria-label="Account filter"
+            name="account"
+            defaultValue={sp.account ?? ""}
+          >
             <option value="">All accounts</option>
             {accounts.map((a) => (
               <option key={a.id} value={a.id}>
@@ -131,102 +160,50 @@ export default async function TradesPage({
           </Card>
         ))}
       </div>
-      {trades.length === 0 ? (
-        <EmptyState
-          title="No matching trades"
-          description="Adjust your filters or log a trade to build your journal."
-          action={
-            <Link href="/trades/new">
-              <Button>New trade</Button>
-            </Link>
-          }
-        />
-      ) : (
-        <Table>
-          <thead>
-            <tr>
-              <Th>Entry</Th>
-              <Th>Asset</Th>
-              <Th>Strategy</Th>
-              <Th>Dir</Th>
-              <Th>Size</Th>
-              <Th>Entry / Exit</Th>
-              <Th>Status</Th>
-              <Th className="text-right">Net P/L</Th>
-              <Th className="text-right">RRR</Th>
-              <Th>Duration</Th>
-            </tr>
-          </thead>
-          <tbody>
-            {trades.map(({ row, derived }) => {
-              const currency = row.account.currency;
-              return (
-                <tr key={row.id} className="hover:bg-surface-2">
-                  <Td>
-                    <Link
-                      href={`/trades/${row.id}`}
-                      className="hover:text-primary"
-                    >
-                      {formatDateTime(row.entryTime)}
-                    </Link>
-                  </Td>
-                  <Td className="font-medium">
-                    <Link
-                      href={`/trades/${row.id}`}
-                      className="hover:text-primary"
-                    >
-                      {row.asset.symbol}
-                    </Link>
-                  </Td>
-                  <Td className="text-muted">{row.strategy?.name ?? "—"}</Td>
-                  <Td>
-                    <Badge
-                      className={
-                        row.direction === "LONG"
-                          ? "border-positive text-positive"
-                          : "border-negative text-negative"
-                      }
-                    >
-                      {row.direction}
-                    </Badge>
-                  </Td>
-                  <Td>{formatNumber(Number(row.size), 4)}</Td>
-                  <Td className="text-muted">
-                    {formatNumber(Number(row.entryPrice), 4)}
-                    {row.exitPrice != null
-                      ? ` → ${formatNumber(Number(row.exitPrice), 4)}`
-                      : ""}
-                  </Td>
-                  <Td>
-                    {row.status === "CLOSED" ? (
-                      <span className="text-muted">Closed</span>
-                    ) : (
-                      <Badge className="border-warning text-warning">
-                        Open
-                      </Badge>
-                    )}
-                  </Td>
-                  <Td
-                    className={`text-right font-medium ${plClass(derived.netPL)}`}
-                  >
-                    {derived.isClosed
-                      ? formatCurrency(derived.netPL, currency)
-                      : "—"}
-                  </Td>
-                  <Td className="text-right">
-                    {derived.actualRRR != null
-                      ? formatNumber(derived.actualRRR)
-                      : "—"}
-                  </Td>
-                  <Td className="text-muted">
-                    {formatDuration(derived.durationMin)}
-                  </Td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </Table>
-      )}
+      <TradeWorkbench
+        initialId={sp.selected}
+        trades={trades.map(({ row, derived }) => ({
+          id: row.id,
+          symbol: row.asset.symbol,
+          account: row.account.name,
+          currency: row.account.currency,
+          direction: row.direction,
+          status: row.status,
+          entryTime: row.entryTime.toISOString(),
+          entryPrice: Number(row.entryPrice),
+          size: Number(row.size),
+          netPL: derived.netPL,
+          strategy: row.strategy?.name ?? "No strategy",
+          notes: row.notes ?? "",
+          confidence: row.confidence,
+          discipline: row.discipline,
+          reviewed: row.reviewedAt != null,
+          leverage: row.leverage,
+          margin: (Number(row.size) * Number(row.entryPrice)) / row.leverage,
+        }))}
+      />
     </div>
+  );
+}
+
+function FieldFilter({
+  name,
+  label,
+  value,
+}: {
+  name: string;
+  label: string;
+  value?: string;
+}) {
+  return (
+    <label className="text-xs text-muted">
+      {label}
+      <Input
+        aria-label={label}
+        type="date"
+        name={name}
+        defaultValue={value ?? ""}
+      />
+    </label>
   );
 }

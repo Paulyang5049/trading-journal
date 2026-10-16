@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { positionRisk } from "@/lib/workspace";
 import { ScreenshotInput } from "@/components/screenshot-input";
 import { deriveTrade } from "@/lib/analytics";
 import { dec, formatNumber } from "@/lib/money";
@@ -17,6 +18,8 @@ import {
 export interface Option {
   id: string;
   label: string;
+  equity?: number;
+  currency?: string;
 }
 
 export interface TradeFormData {
@@ -51,7 +54,7 @@ interface Props {
   strategies: Option[];
   emotions: Option[];
   mistakes: Option[];
-  initial?: TradeFormData;
+  initial?: Partial<TradeFormData>;
 }
 
 const n = (v: string) => (v === "" ? null : Number(v));
@@ -65,6 +68,10 @@ export function TradeForm({
   mistakes,
   initial,
 }: Props) {
+  const [accountId, setAccountId] = useState(
+    initial?.accountId ?? accounts[0]?.id ?? "",
+  );
+  const account = accounts.find((a) => a.id === accountId);
   const [direction, setDirection] = useState(initial?.direction ?? "LONG");
   const [leverage, setLeverage] = useState(String(initial?.leverage ?? 1));
   const validLeverage =
@@ -85,6 +92,13 @@ export function TradeForm({
       ? dec(size).times(entryPrice).div(leverage).toNumber()
       : null;
 
+  const risk = positionRisk(
+    account?.equity ?? 0,
+    Number(size),
+    Number(entryPrice),
+    n(stopLoss),
+    Number(leverage),
+  );
   const derived = useMemo(() => {
     const ep = n(entryPrice);
     const sz = n(size);
@@ -123,7 +137,8 @@ export function TradeForm({
           <Field label="Account">
             <Select
               name="accountId"
-              defaultValue={initial?.accountId ?? accounts[0]?.id}
+              value={accountId}
+              onChange={(e) => setAccountId(e.target.value)}
               required
             >
               {accounts.map((a) => (
@@ -171,6 +186,20 @@ export function TradeForm({
 
       <Card>
         <h2 className="mb-4 text-lg font-semibold">Open position</h2>
+        <div className="mb-5 grid grid-cols-3 gap-3 rounded-lg bg-primary/5 p-3 text-sm">
+          <div>
+            <p className="text-xs text-muted">Realized account equity</p>
+            {formatNumber(account?.equity ?? 0)} {account?.currency}
+          </div>
+          <div>
+            <p className="text-xs text-muted">Risk at stop (before costs)</p>
+            {risk?.riskAmount != null ? formatNumber(risk.riskAmount) : "—"}
+          </div>
+          <div>
+            <p className="text-xs text-muted">Margin / equity</p>
+            {risk ? `${formatNumber(risk.marginPct)}%` : "—"}
+          </div>
+        </div>
         <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
           <Field label="Entry time">
             <Input
@@ -249,7 +278,8 @@ export function TradeForm({
               name="riskPct"
               type="number"
               step="any"
-              defaultValue={initial?.riskPct ?? ""}
+              value={risk?.riskPct?.toFixed(2) ?? ""}
+              readOnly
             />
           </Field>
           <Field label="% Capital usage">
@@ -257,7 +287,8 @@ export function TradeForm({
               name="capitalUsagePct"
               type="number"
               step="any"
-              defaultValue={initial?.capitalUsagePct ?? ""}
+              value={risk?.capitalUsagePct.toFixed(2) ?? ""}
+              readOnly
             />
           </Field>
         </div>
@@ -396,7 +427,7 @@ export function TradeForm({
                     type="checkbox"
                     name="mistakes"
                     value={m.id}
-                    defaultChecked={initial?.mistakeIds.includes(m.id)}
+                    defaultChecked={initial?.mistakeIds?.includes(m.id)}
                     className="accent-[var(--primary)]"
                   />
                   {m.label}

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import {
   LayoutDashboard,
   BookOpen,
@@ -25,6 +25,12 @@ const links: { href: string; label: string; icon: LucideIcon }[] = [
 
 export function Nav() {
   const pathname = usePathname();
+  const params = useSearchParams();
+  const shared = new URLSearchParams();
+  for (const key of ["account", "asset", "strategy", "from", "to"]) {
+    const value = params.get(key);
+    if (value && value !== "all") shared.set(key, value);
+  }
   return (
     <aside className="flex shrink-0 flex-col border-b bg-surface md:sticky md:top-0 md:h-screen md:w-56 md:border-r md:border-b-0">
       <div className="flex items-center gap-2 px-5 py-5">
@@ -46,7 +52,11 @@ export function Nav() {
           return (
             <Link
               key={href}
-              href={href}
+              href={
+                (href === "/" || href === "/trades") && shared.size
+                  ? `${href}?${shared}`
+                  : href
+              }
               aria-current={active ? "page" : undefined}
               className={cn(
                 "flex shrink-0 items-center gap-3 rounded-[var(--radius)] px-3 py-3 text-sm font-medium transition",

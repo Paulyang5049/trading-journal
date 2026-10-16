@@ -1,14 +1,25 @@
 "use client";
 
+import Link from "next/link";
 import { useMemo, useState } from "react";
 import { calculatePositionSize } from "@/lib/calc/positionSize";
 import { formatNumber } from "@/lib/money";
-import { Card, Field, Input } from "@/components/ui";
+import { Button, Select, Card, Field, Input } from "@/components/ui";
 
 const n = (v: string) => (v === "" ? null : Number(v));
 
-export function PositionCalculator() {
-  const [totalCapital, setTotalCapital] = useState("10000");
+export function PositionCalculator({
+  accounts,
+  assets,
+}: {
+  accounts: { id: string; label: string; currency: string; equity: number }[];
+  assets: { id: string; label: string }[];
+}) {
+  const [accountId, setAccountId] = useState(accounts[0]?.id ?? "");
+  const [assetId, setAssetId] = useState(assets[0]?.id ?? "");
+  const [direction, setDirection] = useState("LONG");
+  const account = accounts.find((a) => a.id === accountId);
+  const totalCapital = String(account?.equity ?? 0);
   const [riskPct, setRiskPct] = useState("1");
   const [entryPrice, setEntryPrice] = useState("");
   const [stopLoss, setStopLoss] = useState("");
@@ -34,6 +45,11 @@ export function PositionCalculator() {
       cap <= 0 ||
       risk <= 0 ||
       risk > 100 ||
+      (direction === "LONG" ? stop >= entry : stop <= entry) ||
+      (n(takeProfit) != null &&
+        (direction === "LONG"
+          ? Number(takeProfit) <= entry
+          : Number(takeProfit) >= entry)) ||
       entry <= 0 ||
       stop <= 0 ||
       stop === entry ||
@@ -48,19 +64,63 @@ export function PositionCalculator() {
       stopLoss: stop,
       takeProfit: n(takeProfit),
     });
-  }, [totalCapital, riskPct, entryPrice, stopLoss, takeProfit, leverage]);
+  }, [
+    totalCapital,
+    riskPct,
+    entryPrice,
+    stopLoss,
+    takeProfit,
+    leverage,
+    direction,
+  ]);
 
   return (
     <Card>
       <h2 className="mb-4 text-lg font-semibold">Position-size calculator</h2>
+      <div className="mb-5 grid gap-3 md:grid-cols-3">
+        <Field label="Account">
+          <Select
+            aria-label="Calculator account"
+            value={accountId}
+            onChange={(e) => setAccountId(e.target.value)}
+          >
+            {accounts.map((a) => (
+              <option key={a.id} value={a.id}>
+                {a.label} ({a.currency})
+              </option>
+            ))}
+          </Select>
+        </Field>
+        <Field label="Asset">
+          <Select
+            aria-label="Calculator asset"
+            value={assetId}
+            onChange={(e) => setAssetId(e.target.value)}
+          >
+            {assets.map((a) => (
+              <option key={a.id} value={a.id}>
+                {a.label}
+              </option>
+            ))}
+          </Select>
+        </Field>
+        <Field label="Direction">
+          <Select
+            aria-label="Calculator direction"
+            value={direction}
+            onChange={(e) => setDirection(e.target.value)}
+          >
+            <option value="LONG">Long</option>
+            <option value="SHORT">Short</option>
+          </Select>
+        </Field>
+      </div>
       <div className="grid gap-3 md:grid-cols-3">
-        <Field label="Total capital">
-          <Input
-            type="number"
-            step="any"
-            value={totalCapital}
-            onChange={(e) => setTotalCapital(e.target.value)}
-          />
+        <Field
+          label={`Account equity (${account?.currency ?? "—"})`}
+          hint="Realized equity; excludes unrealized P/L."
+        >
+          <Input type="number" step="any" value={totalCapital} readOnly />
         </Field>
         <Field label="% Risk">
           <Input
@@ -104,6 +164,22 @@ export function PositionCalculator() {
             onChange={(e) => setLeverage(e.target.value)}
           />
         </Field>
+      </div>
+      <div className="mt-4 flex items-center justify-between gap-3 rounded-lg border p-3">
+        <p className="text-xs text-muted">
+          Choose a stop and target on the correct side of your entry. The trade
+          will carry these inputs forward.
+        </p>
+        {result && accountId && assetId ? (
+          <Link
+            className="shrink-0 rounded-lg bg-primary px-4 py-2 text-sm text-white"
+            href={`/trades/new?${new URLSearchParams({ account: accountId, asset: assetId, direction, size: String(result.positionSize), entry: entryPrice, stop: stopLoss, target: takeProfit, leverage })}`}
+          >
+            Create trade →
+          </Link>
+        ) : (
+          <Button disabled>Create trade →</Button>
+        )}
       </div>
       <p className="mt-3 text-xs leading-5 text-muted">
         Position size is based on your risk budget and stop distance. Leverage
