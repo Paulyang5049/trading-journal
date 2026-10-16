@@ -1,6 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useFormStatus } from "react-dom";
+import { positionRisk, sizeFromMargin } from "@/lib/workspace";
 import { ScreenshotInput } from "@/components/screenshot-input";
 import { deriveTrade } from "@/lib/analytics";
 import { dec, formatNumber } from "@/lib/money";
@@ -17,6 +19,11 @@ import {
 export interface Option {
   id: string;
   label: string;
+  equity?: number;
+  symbol?: string;
+  assetClass?: string;
+  accountId?: string | null;
+  currency?: string;
 }
 
 export interface TradeFormData {
@@ -51,7 +58,7 @@ interface Props {
   strategies: Option[];
   emotions: Option[];
   mistakes: Option[];
-  initial?: TradeFormData;
+  initial?: Partial<TradeFormData>;
 }
 
 const n = (v: string) => (v === "" ? null : Number(v));
@@ -65,11 +72,36 @@ export function TradeForm({
   mistakes,
   initial,
 }: Props) {
+  const [accountId, setAccountId] = useState(
+    initial?.accountId ?? accounts[0]?.id ?? "",
+  );
+  const account = accounts.find((a) => a.id === accountId);
+  const initialAsset = assets.find((a) => a.id === initial?.assetId);
+  const [symbol, setSymbol] = useState(initialAsset?.symbol ?? "");
+  const [assetClass, setAssetClass] = useState(
+    initialAsset?.assetClass ?? account?.assetClass ?? "Crypto",
+  );
+  const matchingAsset = assets.find(
+    (a) =>
+      a.symbol?.toUpperCase() === symbol.trim().toUpperCase() &&
+      a.assetClass === assetClass &&
+      (!a.accountId || a.accountId === accountId),
+  );
   const [direction, setDirection] = useState(initial?.direction ?? "LONG");
   const [leverage, setLeverage] = useState(String(initial?.leverage ?? 1));
   const validLeverage =
     Number.isFinite(Number(leverage)) && Number(leverage) >= 1;
-  const [size, setSize] = useState(String(initial?.size ?? ""));
+  const [sizeMode, setSizeMode] = useState(initial?.size ? "units" : "margin");
+  const [quantityStep, setQuantityStep] = useState("");
+  const [manualSize, setManualSize] = useState(String(initial?.size ?? ""));
+  const [cost, setCost] = useState(
+    initial?.size && initial?.entryPrice
+      ? dec(initial.size)
+          .times(initial.entryPrice)
+          .div(initial.leverage ?? 1)
+          .toString()
+      : "",
+  );
   const [entryPrice, setEntryPrice] = useState(
     String(initial?.entryPrice ?? ""),
   );
@@ -80,11 +112,30 @@ export function TradeForm({
   const [exitPrice, setExitPrice] = useState(String(initial?.exitPrice ?? ""));
   const [exitFees, setExitFees] = useState(String(initial?.exitFees ?? ""));
   const [fees, setFees] = useState(String(initial?.fees ?? ""));
+  const computedSize = sizeFromMargin(
+    Number(cost),
+    Number(leverage),
+    Number(entryPrice),
+    quantityStep === "" ? undefined : Number(quantityStep),
+  );
+  const size =
+    sizeMode === "margin"
+      ? computedSize == null
+        ? ""
+        : String(computedSize)
+      : manualSize;
   const margin =
     validLeverage && Number(size) > 0 && Number(entryPrice) > 0
       ? dec(size).times(entryPrice).div(leverage).toNumber()
       : null;
 
+  const risk = positionRisk(
+    account?.equity ?? 0,
+    Number(size),
+    Number(entryPrice),
+    n(stopLoss),
+    Number(leverage),
+  );
   const derived = useMemo(() => {
     const ep = n(entryPrice);
     const sz = n(size);
@@ -115,15 +166,17 @@ export function TradeForm({
 
   return (
     <form action={action} className="space-y-6">
+      <input type="hidden" name="sizeMode" value={sizeMode} />
       {initial?.id && <input type="hidden" name="id" value={initial.id} />}
 
       <Card>
         <h2 className="mb-4 text-lg font-semibold">Setup</h2>
-        <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+        <div className="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-5">
           <Field label="Account">
             <Select
               name="accountId"
-              defaultValue={initial?.accountId ?? accounts[0]?.id}
+              value={accountId}
+              onChange={(e) => setAccountId(e.target.value)}
               required
             >
               {accounts.map((a) => (
@@ -133,16 +186,56 @@ export function TradeForm({
               ))}
             </Select>
           </Field>
-          <Field label="Asset">
-            <Select
-              name="assetId"
-              defaultValue={initial?.assetId ?? assets[0]?.id}
+          <Field
+            label="Symbol"
+            hint={
+              matchingAsset
+                ? "Saved symbol · ready to use"
+                : "New symbol? It will be saved with this trade."
+            }
+          >
+            <Input
+              aria-label="Asset symbol"
+              name="assetSymbol"
+              list="saved-symbols"
+              value={symbol}
+              onChange={(e) => {
+                const next = e.target.value;
+                setSymbol(next);
+                const candidates = assets.filter(
+                  (a) =>
+                    a.symbol?.toUpperCase() === next.trim().toUpperCase() &&
+                    (!a.accountId || a.accountId === accountId),
+                );
+                const saved =
+                  candidates.find((a) => a.accountId === accountId) ??
+                  candidates[0];
+                if (saved?.assetClass) setAssetClass(saved.assetClass);
+              }}
+              placeholder="e.g. BTCUSDT.P"
+              maxLength={64}
               required
+              autoComplete="off"
+            />
+            <datalist id="saved-symbols">
+              {assets
+                .filter((a) => !a.accountId || a.accountId === accountId)
+                .map((a) => (
+                  <option key={a.id} value={a.symbol}>
+                    {a.assetClass}
+                  </option>
+                ))}
+            </datalist>
+          </Field>
+          <Field label="Asset class">
+            <Select
+              name="assetClass"
+              aria-label="Asset class"
+              value={assetClass}
+              onChange={(e) => setAssetClass(e.target.value)}
             >
-              {assets.map((a) => (
-                <option key={a.id} value={a.id}>
-                  {a.label}
-                </option>
+              {["Forex", "Stocks", "Crypto", "Futures", "Other"].map((c) => (
+                <option key={c}>{c}</option>
               ))}
             </Select>
           </Field>
@@ -171,6 +264,20 @@ export function TradeForm({
 
       <Card>
         <h2 className="mb-4 text-lg font-semibold">Open position</h2>
+        <div className="mb-5 grid grid-cols-3 gap-3 rounded-lg bg-primary/5 p-3 text-sm">
+          <div>
+            <p className="text-xs text-muted">Realized account equity</p>
+            {formatNumber(account?.equity ?? 0)} {account?.currency}
+          </div>
+          <div>
+            <p className="text-xs text-muted">Risk at stop (before costs)</p>
+            {risk?.riskAmount != null ? formatNumber(risk.riskAmount) : "—"}
+          </div>
+          <div>
+            <p className="text-xs text-muted">Margin / equity</p>
+            {risk ? `${formatNumber(risk.marginPct)}%` : "—"}
+          </div>
+        </div>
         <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
           <Field label="Entry time">
             <Input
@@ -179,13 +286,69 @@ export function TradeForm({
               defaultValue={initial?.entryTime ?? ""}
             />
           </Field>
-          <Field label="Size (units)">
+          <Field label="Size calculation">
+            <Select
+              aria-label="Size calculation"
+              value={sizeMode}
+              onChange={(e) => {
+                if (e.target.value === "units") setManualSize(size);
+                else if (margin != null) setCost(String(margin));
+                setSizeMode(e.target.value);
+              }}
+            >
+              <option value="margin">From cost / margin</option>
+              <option value="units">Enter units directly</option>
+            </Select>
+          </Field>
+          {sizeMode === "margin" && (
+            <Field
+              label={`Cost / margin (${account?.currency ?? "account currency"})`}
+              hint="Your own capital committed, before leverage and fees."
+            >
+              <Input
+                aria-label="Cost / margin"
+                name="cost"
+                type="number"
+                step="any"
+                min="0.00000001"
+                required
+                value={cost}
+                onChange={(e) => setCost(e.target.value)}
+              />
+            </Field>
+          )}
+          {sizeMode === "margin" && (
+            <Field
+              label="Quantity step (optional)"
+              hint="Use your exchange's size increment, e.g. 0.001. Rounds down to stay within your budget."
+            >
+              <Input
+                aria-label="Quantity step"
+                name="quantityStep"
+                type="number"
+                min="0.00000001"
+                step="any"
+                placeholder="No rounding"
+                value={quantityStep}
+                onChange={(e) => setQuantityStep(e.target.value)}
+              />
+            </Field>
+          )}
+          <Field
+            label="Size (units)"
+            hint={
+              sizeMode === "margin"
+                ? "Cost × leverage ÷ entry price, rounded down if a step is set."
+                : undefined
+            }
+          >
             <Input
               name="size"
               type="number"
               step="any"
               value={size}
-              onChange={(e) => setSize(e.target.value)}
+              readOnly={sizeMode === "margin"}
+              onChange={(e) => setManualSize(e.target.value)}
               required
             />
           </Field>
@@ -249,15 +412,20 @@ export function TradeForm({
               name="riskPct"
               type="number"
               step="any"
-              defaultValue={initial?.riskPct ?? ""}
+              value={risk?.riskPct?.toFixed(2) ?? ""}
+              readOnly
             />
           </Field>
-          <Field label="% Capital usage">
+          <Field
+            label="% Capital usage"
+            hint="Margin ÷ realized account equity × 100"
+          >
             <Input
               name="capitalUsagePct"
               type="number"
               step="any"
-              defaultValue={initial?.capitalUsagePct ?? ""}
+              value={risk?.capitalUsagePct.toFixed(2) ?? ""}
+              readOnly
             />
           </Field>
         </div>
@@ -314,6 +482,14 @@ export function TradeForm({
             multiply P/L again.
           </p>
           <div className="grid grid-cols-2 gap-4 text-sm md:grid-cols-4">
+            <Metric
+              label="Position notional"
+              value={
+                size && entryPrice
+                  ? formatNumber(dec(size).times(entryPrice))
+                  : "—"
+              }
+            />
             <Metric
               label="Estimated initial margin"
               value={margin != null ? formatNumber(margin) : "—"}
@@ -396,7 +572,7 @@ export function TradeForm({
                     type="checkbox"
                     name="mistakes"
                     value={m.id}
-                    defaultChecked={initial?.mistakeIds.includes(m.id)}
+                    defaultChecked={initial?.mistakeIds?.includes(m.id)}
                     className="accent-[var(--primary)]"
                   />
                   {m.label}
@@ -418,9 +594,10 @@ export function TradeForm({
       </Card>
 
       <div className="flex gap-2">
-        <Button type="submit" disabled={!validLeverage}>
-          {initial?.id ? "Save changes" : "Create trade"}
-        </Button>
+        <SubmitTradeButton
+          editing={!!initial?.id}
+          disabled={!validLeverage || !size || Number(size) <= 0}
+        />
       </div>
     </form>
   );
@@ -442,5 +619,20 @@ function Metric({
         {value}
       </p>
     </div>
+  );
+}
+
+function SubmitTradeButton({
+  editing,
+  disabled,
+}: {
+  editing: boolean;
+  disabled: boolean;
+}) {
+  const { pending } = useFormStatus();
+  return (
+    <Button type="submit" disabled={disabled || pending}>
+      {pending ? "Saving trade…" : editing ? "Save changes" : "Create trade"}
+    </Button>
   );
 }

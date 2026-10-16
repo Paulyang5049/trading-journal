@@ -1,8 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import {
+  Plus,
+  TrendingUp,
   LayoutDashboard,
   BookOpen,
   Wallet,
@@ -25,14 +27,30 @@ const links: { href: string; label: string; icon: LucideIcon }[] = [
 
 export function Nav() {
   const pathname = usePathname();
+  const params = useSearchParams();
+  const shared = new URLSearchParams();
+  for (const key of ["account", "asset", "strategy", "from", "to"]) {
+    const value = params.get(key);
+    if (value && value !== "all") shared.set(key, value);
+  }
   return (
     <aside className="flex shrink-0 flex-col border-b bg-surface md:sticky md:top-0 md:h-screen md:w-56 md:border-r md:border-b-0">
       <div className="flex items-center gap-2 px-5 py-5">
         <div className="grid h-8 w-8 place-items-center rounded-[var(--radius)] bg-primary text-primary-foreground font-bold">
-          T
+          <TrendingUp size={20} />
         </div>
         <span className="font-semibold tracking-tight">Trading Journal</span>
+        <div className="ml-auto md:hidden">
+          <ThemeToggle />
+        </div>
       </div>
+      <Link
+        href="/trades/new"
+        className="mx-4 mb-2 hidden items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground shadow-sm transition hover:opacity-90 md:flex"
+      >
+        <Plus size={16} />
+        Log a trade
+      </Link>
       <div className="hidden px-6 pb-3 pt-5 text-[10px] font-semibold uppercase tracking-[0.18em] text-muted md:block">
         Your workspace
       </div>
@@ -46,12 +64,16 @@ export function Nav() {
           return (
             <Link
               key={href}
-              href={href}
+              href={
+                (href === "/" || href === "/trades") && shared.size
+                  ? `${href}?${shared}`
+                  : href
+              }
               aria-current={active ? "page" : undefined}
               className={cn(
                 "flex shrink-0 items-center gap-3 rounded-[var(--radius)] px-3 py-3 text-sm font-medium transition",
                 active
-                  ? "bg-primary/10 text-primary"
+                  ? "bg-primary/10 text-primary shadow-[inset_3px_0_0_var(--primary)]"
                   : "text-muted hover:bg-surface-2 hover:text-foreground",
               )}
             >
@@ -61,7 +83,7 @@ export function Nav() {
           );
         })}
       </nav>
-      <div className="flex items-center justify-between border-t px-5 py-3">
+      <div className="hidden items-center justify-between border-t px-5 py-3 md:flex">
         <span className="text-xs text-muted">Free &amp; open source</span>
         <ThemeToggle />
       </div>

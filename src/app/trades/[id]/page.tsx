@@ -26,7 +26,7 @@ export default async function TradeDetailPage({
 }) {
   const { id } = await params;
   const trade = await prisma.trade.findUnique({
-    where: { id },
+    where: { id, deletedAt: null },
     include: {
       account: true,
       asset: true,

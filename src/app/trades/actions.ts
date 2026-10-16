@@ -5,6 +5,9 @@ import { redirect } from "next/navigation";
 import { randomUUID } from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { normalizeSymbol, resolveTradeAsset } from "@/lib/trade-assets";
+import { accountBalances } from "@/lib/account-balances";
+import { positionRisk, sizeFromMargin } from "@/lib/workspace";
 import { prisma } from "@/lib/db";
 
 function s(form: FormData, key: string): string {
@@ -27,7 +30,15 @@ function dateOrNull(form: FormData, key: string): Date | null {
   return isNaN(d.getTime()) ? null : d;
 }
 
-function buildData(form: FormData) {
+async function buildData(form: FormData) {
+  if (!normalizeSymbol(s(form, "assetSymbol")))
+    redirect("/trades?error=invalid-symbol");
+  if (
+    !["Forex", "Stocks", "Crypto", "Futures", "Other"].includes(
+      s(form, "assetClass"),
+    )
+  )
+    redirect("/trades?error=invalid-symbol");
   const rawLeverage = s(form, "leverage");
   const leverage = rawLeverage === "" ? 1 : Number(rawLeverage);
   if (!Number.isFinite(leverage) || leverage < 1) {
@@ -35,6 +46,26 @@ function buildData(form: FormData) {
   }
   const exitPrice = numOrNull(form, "exitPrice");
   const exitTime = dateOrNull(form, "exitTime");
+  const size =
+    s(form, "sizeMode") === "margin"
+      ? sizeFromMargin(
+          numOrNull(form, "cost") ?? 0,
+          leverage,
+          numOrNull(form, "entryPrice") ?? 0,
+          s(form, "quantityStep") ? Number(s(form, "quantityStep")) : undefined,
+        )
+      : numOrNull(form, "size");
+  if (size == null || size <= 0) redirect("/trades?error=invalid-size");
+  const balance = (await accountBalances()).find(
+    (a) => a.id === s(form, "accountId"),
+  );
+  const risk = positionRisk(
+    balance?.equity ?? 0,
+    size,
+    numOrNull(form, "entryPrice") ?? 0,
+    numOrNull(form, "stopLoss"),
+    leverage,
+  );
   // A trade is CLOSED once it has an exit price.
   const status = exitPrice != null ? "CLOSED" : "OPEN";
   return {
@@ -43,7 +74,7 @@ function buildData(form: FormData) {
     strategyId: opt(form, "strategyId"),
     emotionId: opt(form, "emotionId"),
     direction: s(form, "direction") === "SHORT" ? "SHORT" : "LONG",
-    size: numOrNull(form, "size") ?? 0,
+    size,
     leverage,
     entryTime: dateOrNull(form, "entryTime") ?? new Date(),
     entryPrice: numOrNull(form, "entryPrice") ?? 0,
@@ -53,8 +84,8 @@ function buildData(form: FormData) {
     exitPrice,
     fees: numOrNull(form, "fees") ?? 0,
     exitFees: numOrNull(form, "exitFees") ?? 0,
-    riskPct: numOrNull(form, "riskPct"),
-    capitalUsagePct: numOrNull(form, "capitalUsagePct"),
+    riskPct: risk?.riskPct ?? null,
+    capitalUsagePct: risk?.capitalUsagePct ?? null,
     confidence: numOrNull(form, "confidence"),
     discipline: numOrNull(form, "discipline"),
     notes: opt(form, "notes"),
@@ -116,39 +147,76 @@ async function prepareScreenshots(form: FormData) {
 }
 
 export async function createTrade(form: FormData) {
-  const data = buildData(form);
-  if (!data.accountId || !data.assetId) return;
+  const data = await buildData(form);
+  if (!data.accountId) return;
   const screenshots = await prepareScreenshots(form);
-  const trade = await prisma.trade.create({
-    data: { ...data, screenshots: { create: screenshots } },
+  const trade = await prisma.$transaction(async (tx) => {
+    const asset = await resolveTradeAsset(tx, {
+      accountId: data.accountId,
+      symbol: s(form, "assetSymbol"),
+      assetClass: s(form, "assetClass"),
+    });
+    return tx.trade.create({
+      data: {
+        ...data,
+        assetId: asset.id,
+        screenshots: { create: screenshots },
+      },
+    });
   });
   await syncMistakes(trade.id, form);
+  revalidatePath("/settings");
   revalidatePath("/trades");
   revalidatePath("/");
+  revalidatePath("/accounts");
+  revalidatePath("/preparation");
+  revalidatePath("/mistakes");
   redirect(`/trades/${trade.id}`);
 }
 
 export async function updateTrade(form: FormData) {
   const id = s(form, "id");
   if (!id) return;
-  const data = buildData(form);
+  const data = await buildData(form);
   const screenshots = await prepareScreenshots(form);
-  await prisma.trade.update({
-    where: { id },
-    data: { ...data, screenshots: { create: screenshots } },
+  await prisma.$transaction(async (tx) => {
+    const asset = await resolveTradeAsset(tx, {
+      accountId: data.accountId,
+      symbol: s(form, "assetSymbol"),
+      assetClass: s(form, "assetClass"),
+    });
+    await tx.trade.update({
+      where: { id, deletedAt: null },
+      data: {
+        ...data,
+        assetId: asset.id,
+        screenshots: { create: screenshots },
+      },
+    });
   });
   await syncMistakes(id, form);
+  revalidatePath("/settings");
   revalidatePath("/trades");
   revalidatePath(`/trades/${id}`);
   revalidatePath("/");
+  revalidatePath("/accounts");
+  revalidatePath("/preparation");
+  revalidatePath("/mistakes");
   redirect(`/trades/${id}`);
 }
 
 export async function deleteTrade(form: FormData) {
   const id = s(form, "id");
-  await prisma.trade.delete({ where: { id } });
+  await prisma.trade.updateMany({
+    where: { id, deletedAt: null },
+    data: { deletedAt: new Date() },
+  });
+  revalidatePath("/settings");
   revalidatePath("/trades");
   revalidatePath("/");
+  revalidatePath("/accounts");
+  revalidatePath("/preparation");
+  revalidatePath("/mistakes");
   redirect("/trades");
 }
 

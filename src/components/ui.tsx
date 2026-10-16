@@ -1,11 +1,14 @@
 import * as React from "react";
 import { cn } from "@/lib/cn";
 
-export function Card({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
+export function Card({
+  className,
+  ...props
+}: React.HTMLAttributes<HTMLDivElement>) {
   return (
     <div
       className={cn(
-        "rounded-[var(--radius)] border bg-surface p-5 shadow-sm",
+        "rounded-[var(--radius)] border bg-surface p-5 shadow-[0_2px_12px_-6px_rgba(15,23,42,0.12)]",
         className,
       )}
       {...props}
@@ -23,10 +26,14 @@ export function PageHeader({
   actions?: React.ReactNode;
 }) {
   return (
-    <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
+    <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
-        {description && <p className="mt-1 text-sm text-muted">{description}</p>}
+        <h1 className="text-3xl font-semibold tracking-tight">{title}</h1>
+        {description && (
+          <p className="mt-2 text-sm leading-relaxed text-muted">
+            {description}
+          </p>
+        )}
       </div>
       {actions && <div className="flex items-center gap-2">{actions}</div>}
     </div>
@@ -46,7 +53,9 @@ export function Button({
   className,
   variant = "primary",
   ...props
-}: React.ButtonHTMLAttributes<HTMLButtonElement> & { variant?: ButtonVariant }) {
+}: React.ButtonHTMLAttributes<HTMLButtonElement> & {
+  variant?: ButtonVariant;
+}) {
   return (
     <button
       className={cn(
@@ -109,7 +118,10 @@ export const Select = React.forwardRef<
   );
 });
 
-export function Label({ className, ...props }: React.LabelHTMLAttributes<HTMLLabelElement>) {
+export function Label({
+  className,
+  ...props
+}: React.LabelHTMLAttributes<HTMLLabelElement>) {
   return (
     <label
       className={cn("mb-1.5 block text-xs font-medium text-muted", className)}
@@ -183,7 +195,10 @@ export function Table({ children }: { children: React.ReactNode }) {
   );
 }
 
-export function Th({ className, ...props }: React.ThHTMLAttributes<HTMLTableCellElement>) {
+export function Th({
+  className,
+  ...props
+}: React.ThHTMLAttributes<HTMLTableCellElement>) {
   return (
     <th
       className={cn(
@@ -195,7 +210,10 @@ export function Th({ className, ...props }: React.ThHTMLAttributes<HTMLTableCell
   );
 }
 
-export function Td({ className, ...props }: React.TdHTMLAttributes<HTMLTableCellElement>) {
+export function Td({
+  className,
+  ...props
+}: React.TdHTMLAttributes<HTMLTableCellElement>) {
   return <td className={cn("border-b px-3 py-2", className)} {...props} />;
 }
 

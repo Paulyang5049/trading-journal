@@ -5,6 +5,7 @@ import type { Direction } from "@/lib/analytics";
 // action and `deriveTrade` consume. Asset is carried as a symbol string and
 // resolved to an Asset record at import time.
 export interface ParsedTradeRow {
+  sourceId?: string;
   symbol: string;
   direction: Direction;
   size: number;
@@ -36,8 +37,24 @@ const ALIASES: Record<string, string[]> = {
   symbol: ["symbol", "ticker", "instrument", "pair", "market"],
   direction: ["direction", "type", "side", "action", "b/s"],
   size: ["size", "volume", "qty", "quantity", "lots", "units", "shares"],
-  entryTime: ["entrytime", "entry time", "open time", "opentime", "open", "date", "time", "datetime"],
-  entryPrice: ["entryprice", "entry price", "open price", "openprice", "price", "avg price"],
+  entryTime: [
+    "entrytime",
+    "entry time",
+    "open time",
+    "opentime",
+    "open",
+    "date",
+    "time",
+    "datetime",
+  ],
+  entryPrice: [
+    "entryprice",
+    "entry price",
+    "open price",
+    "openprice",
+    "price",
+    "avg price",
+  ],
   stopLoss: ["stoploss", "stop loss", "sl", "s/l", "stop"],
   takeProfit: ["takeprofit", "take profit", "tp", "t/p", "target"],
   exitTime: ["exittime", "exit time", "close time", "closetime", "close date"],
@@ -96,13 +113,86 @@ function parseDirection(raw: string | undefined): Direction | null {
  * flexibly via ALIASES, so generic, MetaTrader and IBKR exports all work.
  * Returns valid rows plus per-row errors (invalid rows are skipped, not thrown).
  */
-export function parseTradesCsv(text: string): ParseResult {
+export function parseTradesCsv(
+  text: string,
+  bybitOffset = "+00:00",
+): ParseResult {
   const parsed = Papa.parse<Record<string, string>>(text, {
     header: true,
     skipEmptyLines: true,
   });
 
   const headers = parsed.meta.fields ?? [];
+  const bybit = [
+    "Contract",
+    "Filled Price",
+    "Fee Paid",
+    "Action",
+    "TradeId",
+  ].every((h) => headers.includes(h));
+  if (bybit) {
+    const rows: ParsedTradeRow[] = [];
+    const errors: RowError[] = [];
+    const data = parsed.data;
+    // A partial transaction log cannot reliably reconstruct closed positions.
+    const closingSymbols = new Set(
+      data
+        .filter((r) => r.Type === "TRADE" && r.Action !== "OPEN")
+        .map((r) => r.Contract),
+    );
+    const seen = new Set<string>();
+    data.forEach((r, i) => {
+      const skip = (message: string) => errors.push({ row: i + 1, message });
+      if (r.Type !== "TRADE")
+        return skip(
+          `${r.Type}: wallet activity, not a trade. Not imported into capital history.`,
+        );
+      if (r.Action !== "OPEN" || closingSymbols.has(r.Contract))
+        return skip(
+          "This symbol includes closing fills. Use a complete trade-history export; this importer only supports opening fills.",
+        );
+      const size = parseNumber(r.Quantity),
+        price = parseNumber(r["Filled Price"]),
+        fees = parseNumber(r["Fee Paid"]);
+      const direction = parseDirection(r.Direction);
+      const offset = /^[+-](?:0\d|1[0-4]):[0-5]\d$/.test(bybitOffset)
+        ? bybitOffset
+        : "+00:00";
+      const time = parseDate(`${r.Time?.trim().replace(" ", "T")}${offset}`);
+      if (
+        !r.Contract ||
+        !direction ||
+        size == null ||
+        size <= 0 ||
+        price == null ||
+        price <= 0 ||
+        fees == null ||
+        !time ||
+        !r.TradeId ||
+        r.TradeId === "--"
+      )
+        return skip("Missing or invalid opening-fill data.");
+      const sourceId = `bybit:${r.TradeId}`;
+      if (seen.has(sourceId)) return skip("Duplicate TradeId in this file.");
+      seen.add(sourceId);
+      rows.push({
+        sourceId,
+        symbol: r.Contract.trim().toUpperCase(),
+        direction,
+        size,
+        entryTime: time,
+        entryPrice: price,
+        fees,
+        stopLoss: null,
+        takeProfit: null,
+        exitTime: null,
+        exitPrice: null,
+        strategy: null,
+        notes: `Bybit opening fill [${sourceId}]. Settlement: ${r.Currency}. Order: ${r.OrderId}. Export timezone: ${offset}. Leverage and stop/target are not supplied; review these after import.`,
+      });
+    });
+    return { rows, errors, totalRows: data.length };
+  }
   const map = buildHeaderMap(headers);
   const rows: ParsedTradeRow[] = [];
   const errors: RowError[] = [];
@@ -124,7 +214,10 @@ export function parseTradesCsv(text: string): ParseResult {
     if (entryPrice == null) missing.push("entry price");
     if (!entryTime) missing.push("entry time");
     if (missing.length) {
-      errors.push({ row: rowNum, message: `Missing/invalid: ${missing.join(", ")}` });
+      errors.push({
+        row: rowNum,
+        message: `Missing/invalid: ${missing.join(", ")}`,
+      });
       return;
     }
 

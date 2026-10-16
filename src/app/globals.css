@@ -15,17 +15,17 @@
   --positive: #1fc77d;
   --negative: #ff5d5d;
   --warning: #f5b54a;
-  --radius: 0.625rem;
+  --radius: 0.875rem;
 }
 
 .light {
-  --background: #f5f6f8;
+  --background: #f3f5f9;
   --surface: #ffffff;
   --surface-2: #eef1f5;
   --border: #dfe3ea;
   --foreground: #161a22;
   --muted: #5b6472;
-  --primary: #5163d9;
+  --primary: #4f46d4;
   --primary-foreground: #ffffff;
   --positive: #168264;
   --negative: #cf4b57;
@@ -87,4 +87,13 @@ tbody tr:last-child td {
 * {
   scrollbar-width: thin;
   scrollbar-color: var(--border) transparent;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  button,
+  a,
+  input,
+  select {
+    transition-duration: 150ms;
+  }
 }

@@ -21,6 +21,7 @@ import {
   EmptyState,
   plClass,
   Select,
+  Input,
 } from "@/components/ui";
 import {
   EquityChart,
@@ -36,22 +37,30 @@ export default async function DashboardPage({
   searchParams: Promise<Record<string, string | undefined>>;
 }) {
   const sp = await searchParams;
-  const [allTrades, accounts, allEvents] = await Promise.all([
-    getTrades(),
+  const [filteredTrades, accounts, allEvents, allTrades] = await Promise.all([
+    getTrades({
+      from: sp.from,
+      to: sp.to,
+      assetId: sp.asset,
+      strategyId: sp.strategy,
+    }),
     prisma.account.findMany(),
     prisma.capitalEvent.findMany({ orderBy: { datetime: "asc" } }),
+    getTrades(),
   ]);
 
   const currencies = [...new Set(accounts.map((a) => a.currency))];
-  const currency = currencies.includes(sp.currency ?? "")
-    ? sp.currency!
-    : (currencies[0] ?? "USD");
+  const currency =
+    accounts.find((a) => a.id === sp.account)?.currency ??
+    (currencies.includes(sp.currency ?? "")
+      ? sp.currency!
+      : (currencies[0] ?? "USD"));
   const accountId = accounts.some(
     (a) => a.id === sp.account && a.currency === currency,
   )
     ? sp.account
     : undefined;
-  const trades = allTrades.filter(
+  const trades = filteredTrades.filter(
     (t) =>
       t.row.account.currency === currency &&
       (!accountId || t.row.accountId === accountId),
@@ -102,7 +111,8 @@ export default async function DashboardPage({
       time: e.datetime,
       amount: num(e.amount),
     })),
-    closedTrades: trades
+    closedTrades: allTrades
+      .filter((t) => accountIds.includes(t.row.accountId))
       .filter((t) => t.derived.isClosed && t.row.exitTime)
       .map((t) => ({ time: t.row.exitTime as Date, netPL: t.derived.netPL })),
   });
@@ -156,8 +166,28 @@ export default async function DashboardPage({
       <Card className="p-3">
         <form method="get" className="flex flex-wrap items-center gap-3">
           <span className="mr-auto text-xs font-medium text-muted">
-            ALL-TIME PERFORMANCE
+            PERFORMANCE · ENTRY DATE FILTER
           </span>
+          <label className="text-xs text-muted">
+            From (UTC)
+            <Input
+              aria-label="Dashboard from"
+              type="date"
+              name="from"
+              defaultValue={sp.from ?? ""}
+            />
+          </label>
+          <label className="text-xs text-muted">
+            To (UTC)
+            <Input
+              aria-label="Dashboard to"
+              type="date"
+              name="to"
+              defaultValue={sp.to ?? ""}
+            />
+          </label>
+          <input type="hidden" name="asset" value={sp.asset ?? ""} />
+          <input type="hidden" name="strategy" value={sp.strategy ?? ""} />
           <Select
             aria-label="Currency"
             name="currency"
@@ -212,7 +242,10 @@ export default async function DashboardPage({
           value={formatPct(summary.winRate)}
           className={summary.winRate >= 50 ? "text-positive" : undefined}
         />
-        <Metric label="Max drawdown" value={formatPct(dd.maxDrawdownPct)} />
+        <Metric
+          label="Account drawdown · all time"
+          value={formatPct(dd.maxDrawdownPct)}
+        />
         <Metric
           label="Avg actual RRR"
           value={formatNumber(summary.avgActualRRR)}
@@ -231,6 +264,13 @@ export default async function DashboardPage({
         <PnlCalendar
           key={`${currency}-${accountId}`}
           currency={currency}
+          accountId={accountId}
+          filters={{
+            from: sp.from,
+            to: sp.to,
+            asset: sp.asset,
+            strategy: sp.strategy,
+          }}
           trades={trades
             .filter((t) => t.derived.isClosed && t.row.exitTime)
             .map((t) => ({
@@ -243,7 +283,10 @@ export default async function DashboardPage({
         <Card>
           <div className="mb-5 flex items-center justify-between">
             <h2 className="font-semibold">Recent trades</h2>
-            <Link className="text-xs text-primary" href="/trades">
+            <Link
+              className="text-xs text-primary"
+              href={`/trades?${new URLSearchParams(Object.entries({ account: accountId, from: sp.from, to: sp.to, asset: sp.asset, strategy: sp.strategy }).filter((e): e is [string, string] => typeof e[1] === "string"))}`}
+            >
               View journal ↗
             </Link>
           </div>
@@ -291,7 +334,9 @@ export default async function DashboardPage({
       </div>
       {/* Equity curve */}
       <Card>
-        <h2 className="mb-4 text-lg font-semibold">Equity curve</h2>
+        <h2 className="mb-4 text-lg font-semibold">
+          Account equity · all time
+        </h2>
         {curve.length > 0 ? (
           <EquityChart
             data={curve.map((p) => ({

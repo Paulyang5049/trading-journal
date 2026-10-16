@@ -1,5 +1,6 @@
 export const dynamic = "force-dynamic";
 
+import { BackupPanel } from "@/components/backup-panel";
 import { prisma } from "@/lib/db";
 import Link from "next/link";
 import { num, formatCurrency } from "@/lib/money";
@@ -30,7 +31,13 @@ import {
 
 const ASSET_CLASSES = ["Forex", "Stocks", "Crypto", "Futures", "Other"];
 
-function DeleteForm({ action, id }: { action: (f: FormData) => void; id: string }) {
+function DeleteForm({
+  action,
+  id,
+}: {
+  action: (f: FormData) => void;
+  id: string;
+}) {
   return (
     <form action={action}>
       <input type="hidden" name="id" value={id} />
@@ -41,13 +48,18 @@ function DeleteForm({ action, id }: { action: (f: FormData) => void; id: string 
   );
 }
 
-export default async function SettingsPage({ searchParams }: {
+export default async function SettingsPage({
+  searchParams,
+}: {
   searchParams: Promise<Record<string, string | undefined>>;
 }) {
   const sp = await searchParams;
   const [accounts, assets, strategies, emotions, settings] = await Promise.all([
     prisma.account.findMany({ orderBy: { createdAt: "asc" } }),
-    prisma.asset.findMany({ include: { account: true, _count: { select: { trades: true } } }, orderBy: { symbol: "asc" } }),
+    prisma.asset.findMany({
+      include: { account: true, _count: { select: { trades: true } } },
+      orderBy: { symbol: "asc" },
+    }),
     prisma.strategy.findMany({ orderBy: { name: "asc" } }),
     prisma.emotion.findMany({ orderBy: { score: "desc" } }),
     prisma.settings.findUnique({ where: { id: 1 } }),
@@ -60,6 +72,23 @@ export default async function SettingsPage({ searchParams }: {
         description="Configure accounts, assets, strategies, emotions and goals."
       />
 
+      <nav aria-label="Settings sections" className="flex flex-wrap gap-2">
+        {[
+          ["accounts", "Accounts"],
+          ["assets", "Saved symbols"],
+          ["strategies", "Strategies"],
+          ["emotions", "Emotions"],
+          ["backup", "Backup & restore"],
+        ].map(([id, label]) => (
+          <a
+            key={id}
+            href={`#${id}`}
+            className="rounded-full border bg-surface px-4 py-2 text-xs font-medium text-muted hover:border-primary hover:text-primary"
+          >
+            {label}
+          </a>
+        ))}
+      </nav>
       {/* Goals */}
       <Card>
         <h2 className="mb-4 text-lg font-semibold">Goals &amp; currency</h2>
@@ -101,7 +130,7 @@ export default async function SettingsPage({ searchParams }: {
       </Card>
 
       {/* Accounts */}
-      <Card>
+      <Card id="accounts">
         <h2 className="mb-4 text-lg font-semibold">Accounts</h2>
         <form
           action={createAccount}
@@ -121,7 +150,12 @@ export default async function SettingsPage({ searchParams }: {
             <Input name="currency" defaultValue="USD" />
           </Field>
           <Field label="Starting capital">
-            <Input name="startingCapital" type="number" step="0.01" defaultValue={0} />
+            <Input
+              name="startingCapital"
+              type="number"
+              step="0.01"
+              defaultValue={0}
+            />
           </Field>
           <div className="flex items-end">
             <Button type="submit" className="w-full">
@@ -161,39 +195,54 @@ export default async function SettingsPage({ searchParams }: {
 
       {/* Assets */}
       <Card id="assets">
-        <h2 className="mb-4 text-lg font-semibold">Assets</h2>
-        <p className="mb-4 text-sm text-muted">Assets used by saved trades cannot be deleted. Open the linked trades to review where an asset is used.</p>
-        {sp.notice === "asset-not-deleted" && <p role="status" className="mb-4 rounded-lg border p-3 text-sm">This asset could not be deleted because it is used by saved trades or has already been removed. Your trades have been preserved.</p>}
-        <form
-          action={createAsset}
-          className="mb-5 grid grid-cols-2 gap-3 md:grid-cols-4"
-        >
-          <Field label="Symbol">
-            <Input name="symbol" placeholder="EURUSD" required />
-          </Field>
-          <Field label="Class">
-            <Select name="assetClass" defaultValue="Forex">
-              {ASSET_CLASSES.map((c) => (
-                <option key={c}>{c}</option>
-              ))}
-            </Select>
-          </Field>
-          <Field label="Account (optional)">
-            <Select name="accountId" defaultValue="">
-              <option value="">All accounts</option>
-              {accounts.map((a) => (
-                <option key={a.id} value={a.id}>
-                  {a.name}
-                </option>
-              ))}
-            </Select>
-          </Field>
-          <div className="flex items-end">
-            <Button type="submit" className="w-full">
-              Add
-            </Button>
+        <h2 className="mb-2 text-lg font-semibold">Saved symbols</h2>
+        <p className="mb-4 text-sm text-muted">
+          Symbols are saved automatically when you log a trade. Manage your
+          saved symbols here.
+        </p>
+        {sp.notice === "asset-not-deleted" && (
+          <p role="status" className="mb-4 rounded-lg border p-3 text-sm">
+            This asset could not be deleted because it is used by saved trades
+            or has already been removed. Your trades have been preserved.
+          </p>
+        )}
+        <details className="mb-5 rounded-xl border p-3">
+          <summary className="cursor-pointer text-sm text-muted">
+            Add a symbol manually (optional)
+          </summary>
+          <div className="mt-4">
+            <form
+              action={createAsset}
+              className="mb-5 grid grid-cols-2 gap-3 md:grid-cols-4"
+            >
+              <Field label="Symbol">
+                <Input name="symbol" placeholder="EURUSD" required />
+              </Field>
+              <Field label="Class">
+                <Select name="assetClass" defaultValue="Forex">
+                  {ASSET_CLASSES.map((c) => (
+                    <option key={c}>{c}</option>
+                  ))}
+                </Select>
+              </Field>
+              <Field label="Account (optional)">
+                <Select name="accountId" defaultValue="">
+                  <option value="">All accounts</option>
+                  {accounts.map((a) => (
+                    <option key={a.id} value={a.id}>
+                      {a.name}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+              <div className="flex items-end">
+                <Button type="submit" className="w-full">
+                  Add
+                </Button>
+              </div>
+            </form>
           </div>
-        </form>
+        </details>
         {assets.length > 0 ? (
           <div className="flex flex-wrap gap-2">
             {assets.map((a) => (
@@ -204,10 +253,17 @@ export default async function SettingsPage({ searchParams }: {
                 <span className="font-medium">{a.symbol}</span>
                 <span className="text-xs text-muted">{a.assetClass}</span>
                 {a._count.trades > 0 ? (
-                  <Link href={`/trades?asset=${a.id}`} className="text-xs text-primary hover:underline" aria-label={`View ${a._count.trades} trades using ${a.symbol}`}>
-                    Used in {a._count.trades} {a._count.trades === 1 ? "trade" : "trades"}
+                  <Link
+                    href={`/trades?asset=${a.id}`}
+                    className="text-xs text-primary hover:underline"
+                    aria-label={`View ${a._count.trades} trades using ${a.symbol}`}
+                  >
+                    Used in {a._count.trades}{" "}
+                    {a._count.trades === 1 ? "trade" : "trades"}
                   </Link>
-                ) : <DeleteForm action={deleteAsset} id={a.id} />}
+                ) : (
+                  <DeleteForm action={deleteAsset} id={a.id} />
+                )}
               </span>
             ))}
           </div>
@@ -217,7 +273,7 @@ export default async function SettingsPage({ searchParams }: {
       </Card>
 
       {/* Strategies */}
-      <Card>
+      <Card id="strategies">
         <h2 className="mb-4 text-lg font-semibold">Strategies</h2>
         <form
           action={createStrategy}
@@ -249,7 +305,7 @@ export default async function SettingsPage({ searchParams }: {
       </Card>
 
       {/* Emotions */}
-      <Card>
+      <Card id="emotions">
         <h2 className="mb-4 text-lg font-semibold">Emotional states</h2>
         <form
           action={createEmotion}
@@ -259,7 +315,13 @@ export default async function SettingsPage({ searchParams }: {
             <Input name="name" placeholder="Confident" required />
           </Field>
           <Field label="Score (-5..5)">
-            <Input name="score" type="number" min={-5} max={5} defaultValue={0} />
+            <Input
+              name="score"
+              type="number"
+              min={-5}
+              max={5}
+              defaultValue={0}
+            />
           </Field>
           <Field label="Explanation">
             <Input name="explanation" placeholder="Optional" />
@@ -305,6 +367,7 @@ export default async function SettingsPage({ searchParams }: {
           </tbody>
         </Table>
       </Card>
+      <BackupPanel />
     </div>
   );
 }

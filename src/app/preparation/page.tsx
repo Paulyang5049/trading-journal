@@ -1,5 +1,7 @@
 export const dynamic = "force-dynamic";
 
+import { accountBalances } from "@/lib/account-balances";
+import { getFormOptions } from "@/lib/trades";
 import { prisma } from "@/lib/db";
 import { num } from "@/lib/money";
 import {
@@ -17,19 +19,29 @@ import { Trash2 } from "lucide-react";
 import { createWatchlistItem, deleteWatchlistItem } from "./actions";
 
 export default async function PreparationPage() {
+  const [accounts, options] = await Promise.all([
+    accountBalances(),
+    getFormOptions(),
+  ]);
   const items = await prisma.watchlistItem.findMany({
     orderBy: { createdAt: "desc" },
   });
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Preparation" description="Your watchlist and calculator." />
+      <PageHeader
+        title="Preparation"
+        description="Your watchlist and calculator."
+      />
 
-      <PositionCalculator />
+      <PositionCalculator accounts={accounts} assets={options.assets} />
 
       <Card>
         <h2 className="mb-4 text-lg font-semibold">Add to watchlist</h2>
-        <form action={createWatchlistItem} className="grid gap-3 md:grid-cols-3">
+        <form
+          action={createWatchlistItem}
+          className="grid gap-3 md:grid-cols-3"
+        >
           <Field label="Symbol">
             <Input name="symbol" placeholder="EURUSD" required />
           </Field>
@@ -87,7 +99,10 @@ export default async function PreparationPage() {
                   <Td className="text-right">
                     <form action={deleteWatchlistItem}>
                       <input type="hidden" name="id" value={w.id} />
-                      <button aria-label="delete" className="text-muted hover:text-negative">
+                      <button
+                        aria-label="delete"
+                        className="text-muted hover:text-negative"
+                      >
                         <Trash2 size={15} />
                       </button>
                     </form>

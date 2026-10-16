@@ -1,7 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { parseTradesCsv, type ParsedTradeRow, type RowError } from "@/lib/import/parse";
+import {
+  parseTradesCsv,
+  type ParsedTradeRow,
+  type RowError,
+} from "@/lib/import/parse";
 import { deriveTrade } from "@/lib/analytics";
 import { formatCurrency, formatNumber } from "@/lib/money";
 import {
@@ -30,6 +34,7 @@ export function ImportForm({
   action: (form: FormData) => void;
   accounts: Option[];
 }) {
+  const [bybitOffset, setBybitOffset] = useState("+00:00");
   const [csv, setCsv] = useState("");
   const [rows, setRows] = useState<ParsedTradeRow[]>([]);
   const [errors, setErrors] = useState<RowError[]>([]);
@@ -39,7 +44,7 @@ export function ImportForm({
     const file = e.target.files?.[0];
     if (!file) return;
     const text = await file.text();
-    const result = parseTradesCsv(text);
+    const result = parseTradesCsv(text, bybitOffset);
     setCsv(text);
     setRows(result.rows);
     setErrors(result.errors);
@@ -51,9 +56,10 @@ export function ImportForm({
       <Card>
         <h2 className="mb-2 text-lg font-semibold">Upload a CSV</h2>
         <p className="mb-4 text-sm text-muted">
-          Column names are matched flexibly — generic, MetaTrader and IBKR exports
-          all work. Recognised fields: symbol, direction, size, entry/exit time &amp;
-          price, stop loss, take profit, fees, strategy, notes.
+          Column names are matched flexibly — generic, MetaTrader and IBKR
+          exports all work. Recognised fields: symbol, direction, size,
+          entry/exit time &amp; price, stop loss, take profit, fees, strategy,
+          notes.
         </p>
         <input
           type="file"
@@ -63,20 +69,59 @@ export function ImportForm({
         />
       </Card>
 
+      {csv.includes("TradeId") && csv.includes("Filled Price") && (
+        <Card>
+          <h2 className="mb-2 font-semibold">Bybit transaction log detected</h2>
+          <p className="mb-3 text-sm text-muted">
+            Opening fills are imported individually as open trades. Wallet
+            activity is skipped. Leverage, stop loss, and take profit are not
+            supplied by this export. Existing journal entries with the same
+            Bybit TradeId will be skipped.
+          </p>
+          <Field label="Timezone used in this export">
+            <Select
+              aria-label="Export timezone"
+              value={bybitOffset}
+              onChange={(e) => {
+                setBybitOffset(e.target.value);
+                const result = parseTradesCsv(csv, e.target.value);
+                setRows(result.rows);
+                setErrors(result.errors);
+              }}
+            >
+              <option value="+00:00">UTC (+00:00)</option>
+              <option value="+08:00">China / Singapore (+08:00)</option>
+            </Select>
+          </Field>
+          <p className="mt-2 text-xs text-muted">
+            Confirm the export timezone before importing. USDT settlement is
+            recorded in the notes; no USD conversion is performed. Previously
+            entered trades without a Bybit TradeId cannot be detected as
+            duplicates.
+          </p>
+        </Card>
+      )}
       {fileName && (
         <Card>
           <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
             <div>
               <h2 className="text-lg font-semibold">Preview</h2>
               <p className="mt-1 text-sm text-muted">
-                {fileName} · {rows.length} valid {rows.length === 1 ? "trade" : "trades"}
+                {fileName} · {rows.length} valid{" "}
+                {rows.length === 1 ? "trade" : "trades"}
                 {errors.length > 0 && ` · ${errors.length} skipped`}
               </p>
             </div>
             <form action={action} className="flex items-end gap-3">
               <input type="hidden" name="csv" value={csv} />
+              <input type="hidden" name="bybitOffset" value={bybitOffset} />
               <Field label="Import into account">
-                <Select name="accountId" defaultValue={accounts[0]?.id} className="w-48" required>
+                <Select
+                  name="accountId"
+                  defaultValue={accounts[0]?.id}
+                  className="w-48"
+                  required
+                >
                   {accounts.map((a) => (
                     <option key={a.id} value={a.id}>
                       {a.label}
@@ -147,10 +192,14 @@ export function ImportForm({
                       <Td>{formatNumber(r.size, 4)}</Td>
                       <Td className="text-muted">
                         {formatNumber(r.entryPrice, 4)}
-                        {r.exitPrice != null ? ` → ${formatNumber(r.exitPrice, 4)}` : ""}
+                        {r.exitPrice != null
+                          ? ` → ${formatNumber(r.exitPrice, 4)}`
+                          : ""}
                       </Td>
                       <Td>{d.isClosed ? "Closed" : "Open"}</Td>
-                      <Td className={`text-right font-medium ${plClass(d.netPL)}`}>
+                      <Td
+                        className={`text-right font-medium ${plClass(d.netPL)}`}
+                      >
                         {d.isClosed ? formatCurrency(d.netPL) : "—"}
                       </Td>
                     </tr>
@@ -161,7 +210,8 @@ export function ImportForm({
           )}
           {rows.length > PREVIEW_LIMIT && (
             <p className="mt-2 text-xs text-muted">
-              Showing first {PREVIEW_LIMIT} of {rows.length}. All {rows.length} will be imported.
+              Showing first {PREVIEW_LIMIT} of {rows.length}. All {rows.length}{" "}
+              will be imported.
             </p>
           )}
         </Card>

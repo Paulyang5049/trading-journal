@@ -43,7 +43,7 @@ describe("parseTradesCsv", () => {
   it("strips thousands separators and currency symbols from numbers", () => {
     const csv = [
       "ticker,side,qty,date,price",
-      "AAPL,buy,\"1,000\",2024-05-01,$150.25",
+      'AAPL,buy,"1,000",2024-05-01,$150.25',
     ].join("\n");
     const { rows, errors } = parseTradesCsv(csv);
     expect(errors).toHaveLength(0);
@@ -66,8 +66,53 @@ describe("parseTradesCsv", () => {
   });
 
   it("defaults direction to LONG when missing/unknown", () => {
-    const csv = ["symbol,size,entryPrice,entryTime", "EURUSD,10,1.1,2024-01-02"].join("\n");
+    const csv = [
+      "symbol,size,entryPrice,entryTime",
+      "EURUSD,10,1.1,2024-01-02",
+    ].join("\n");
     const { rows } = parseTradesCsv(csv);
     expect(rows[0].direction).toBe("LONG");
+  });
+});
+
+describe("Bybit transaction log", () => {
+  const header =
+    "Currency,Contract,Type,Direction,Quantity,Position,Filled Price,Funding,Fee Paid,Cash Flow,Change,Wallet Balance,Action,OrderId,TradeId,Time";
+  const open =
+    "USDT,TSMUSDT,TRADE,BUY,1.79,1.79,418.3,0,0.05,0,0,584,OPEN,order-1,fill-1,2026-10-16 13:31:03.694";
+  it("recognizes opening fills, fees, IDs and explicit timezone", () => {
+    const r = parseTradesCsv(header + "\n" + open, "+08:00");
+    expect(r.rows[0]).toMatchObject({
+      symbol: "TSMUSDT",
+      direction: "LONG",
+      size: 1.79,
+      entryPrice: 418.3,
+      fees: 0.05,
+      sourceId: "bybit:fill-1",
+      exitPrice: null,
+    });
+    expect(r.rows[0].entryTime.toISOString()).toBe("2026-10-16T05:31:03.694Z");
+  });
+  it("skips wallet events and duplicate fills", () => {
+    const r = parseTradesCsv(
+      header +
+        "\n" +
+        open +
+        "\n" +
+        open +
+        "\n" +
+        "USDT,,TRANSFER_OUT,--,0,0,0,0,0,-200,-200,384,--,--,--,2026-10-16 14:00:00.000",
+    );
+    expect(r.rows).toHaveLength(1);
+    expect(r.errors).toHaveLength(2);
+  });
+  it("does not turn a closing fill into a short or leave its opening fill falsely open", () => {
+    const close = open
+      .replace(",BUY,", ",SELL,")
+      .replace(",OPEN,", ",CLOSE,")
+      .replace("fill-1", "fill-2");
+    const r = parseTradesCsv(header + "\n" + open + "\n" + close);
+    expect(r.rows).toHaveLength(0);
+    expect(r.errors).toHaveLength(2);
   });
 });
