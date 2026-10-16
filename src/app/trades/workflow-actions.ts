@@ -74,3 +74,18 @@ export async function completeReview(
   refresh(id);
   return { success: "Review saved and marked complete." };
 }
+
+export async function removeTrade(
+  _state: { error?: string; success?: string },
+  form: FormData,
+): Promise<{ error?: string; success?: string }> {
+  const id = String(form.get("id") ?? "").trim();
+  if (!id) return { error: "Select a trade to delete." };
+  try {
+    await prisma.trade.deleteMany({ where: { id } });
+  } catch {
+    return { error: "Could not delete this trade. Please try again." };
+  }
+  refresh(id);
+  return { success: "Trade deleted." };
+}

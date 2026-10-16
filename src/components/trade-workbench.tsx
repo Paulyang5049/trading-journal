@@ -2,7 +2,11 @@
 import { useActionState, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { closePosition, completeReview } from "@/app/trades/workflow-actions";
+import {
+  closePosition,
+  completeReview,
+  removeTrade,
+} from "@/app/trades/workflow-actions";
 import { formatCurrency, formatNumber } from "@/lib/money";
 import { toLocalInput } from "@/lib/format";
 import { Button, Input, Textarea, Field, plClass } from "./ui";
@@ -46,9 +50,10 @@ export function TradeWorkbench({
   );
   return (
     <section>
-      <div className="mb-3 flex items-center justify-between">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
         <p className="text-sm text-muted">
-          {trades.length} trades · Select a trade to review or close it
+          {trades.length} {trades.length === 1 ? "trade" : "trades"} · Select a
+          trade to review or close it
         </p>
         <select
           aria-label="Sort trades"
@@ -61,7 +66,7 @@ export function TradeWorkbench({
         </select>
       </div>
       <div className="overflow-auto rounded-xl border bg-surface">
-        <table className="w-full text-sm">
+        <table className="w-full min-w-[780px] text-sm">
           <thead className="bg-surface-2 text-left text-xs text-muted">
             <tr>
               {[
@@ -87,8 +92,15 @@ export function TradeWorkbench({
                     onClick={() => setSelected(t.id)}
                   >
                     {t.symbol}
-                    <span className="mt-1 block text-[10px] font-normal text-muted">
-                      {t.direction} · {t.size} units · {t.leverage}×
+                    <span
+                      className="mt-1 block text-[10px] font-normal text-muted"
+                      title={String(t.size)}
+                    >
+                      {t.direction} ·{" "}
+                      {new Intl.NumberFormat("en-US", {
+                        maximumSignificantDigits: 8,
+                      }).format(t.size)}{" "}
+                      units · {t.leverage}×
                     </span>
                   </button>
                 </td>
@@ -115,10 +127,13 @@ export function TradeWorkbench({
                     ? formatCurrency(t.netPL, t.currency)
                     : "—"}
                 </td>
-                <td className="px-4">
-                  <Button variant="ghost" onClick={() => setSelected(t.id)}>
-                    {t.status === "OPEN" ? "Close / details" : "Review"}
-                  </Button>
+                <td className="px-4 py-3">
+                  <div className="flex items-center gap-1 whitespace-nowrap">
+                    <Button variant="ghost" onClick={() => setSelected(t.id)}>
+                      {t.status === "OPEN" ? "Details / close" : "Review"}
+                    </Button>
+                    <DeleteTradeButton trade={t} />
+                  </div>
                 </td>
               </tr>
             ))}
@@ -277,6 +292,47 @@ function WorkflowForm({ trade }: { trade: WorkbenchTrade }) {
             ? "Close position"
             : "Save review"}
       </Button>
+    </form>
+  );
+}
+
+function DeleteTradeButton({ trade }: { trade: WorkbenchTrade }) {
+  const router = useRouter();
+  const [state, action, pending] = useActionState(removeTrade, {});
+  useEffect(() => {
+    if (state.success) router.refresh();
+  }, [state.success, router]);
+  return (
+    <form
+      action={action}
+      onSubmit={(event) => {
+        if (
+          !window.confirm(
+            `Delete the ${trade.symbol} trade from ${trade.account}? This cannot be undone.`,
+          )
+        ) {
+          event.preventDefault();
+        }
+      }}
+    >
+      <input type="hidden" name="id" value={trade.id} />
+      <Button
+        variant="ghost"
+        type="submit"
+        disabled={pending}
+        aria-label={`Delete ${trade.symbol} trade`}
+        className="text-negative"
+      >
+        {pending ? "Deleting…" : "Delete"}
+      </Button>
+      {state.error && (
+        <p
+          role="alert"
+          className="max-w-48 whitespace-normal text-xs text-negative"
+        >
+          {state.error}
+        </p>
+      )}
     </form>
   );
 }
