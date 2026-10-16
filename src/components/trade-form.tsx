@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { positionRisk } from "@/lib/workspace";
+import { positionRisk, sizeFromMargin } from "@/lib/workspace";
 import { ScreenshotInput } from "@/components/screenshot-input";
 import { deriveTrade } from "@/lib/analytics";
 import { dec, formatNumber } from "@/lib/money";
@@ -76,7 +76,16 @@ export function TradeForm({
   const [leverage, setLeverage] = useState(String(initial?.leverage ?? 1));
   const validLeverage =
     Number.isFinite(Number(leverage)) && Number(leverage) >= 1;
-  const [size, setSize] = useState(String(initial?.size ?? ""));
+  const [sizeMode, setSizeMode] = useState(initial?.size ? "units" : "margin");
+  const [manualSize, setManualSize] = useState(String(initial?.size ?? ""));
+  const [cost, setCost] = useState(
+    initial?.size && initial?.entryPrice
+      ? dec(initial.size)
+          .times(initial.entryPrice)
+          .div(initial.leverage ?? 1)
+          .toString()
+      : "",
+  );
   const [entryPrice, setEntryPrice] = useState(
     String(initial?.entryPrice ?? ""),
   );
@@ -87,6 +96,17 @@ export function TradeForm({
   const [exitPrice, setExitPrice] = useState(String(initial?.exitPrice ?? ""));
   const [exitFees, setExitFees] = useState(String(initial?.exitFees ?? ""));
   const [fees, setFees] = useState(String(initial?.fees ?? ""));
+  const computedSize = sizeFromMargin(
+    Number(cost),
+    Number(leverage),
+    Number(entryPrice),
+  );
+  const size =
+    sizeMode === "margin"
+      ? computedSize == null
+        ? ""
+        : String(computedSize)
+      : manualSize;
   const margin =
     validLeverage && Number(size) > 0 && Number(entryPrice) > 0
       ? dec(size).times(entryPrice).div(leverage).toNumber()
@@ -129,6 +149,7 @@ export function TradeForm({
 
   return (
     <form action={action} className="space-y-6">
+      <input type="hidden" name="sizeMode" value={sizeMode} />
       {initial?.id && <input type="hidden" name="id" value={initial.id} />}
 
       <Card>
@@ -208,13 +229,52 @@ export function TradeForm({
               defaultValue={initial?.entryTime ?? ""}
             />
           </Field>
-          <Field label="Size (units)">
+          <Field label="Size calculation">
+            <Select
+              aria-label="Size calculation"
+              value={sizeMode}
+              onChange={(e) => {
+                if (e.target.value === "units") setManualSize(size);
+                else if (margin != null) setCost(String(margin));
+                setSizeMode(e.target.value);
+              }}
+            >
+              <option value="margin">From cost / margin</option>
+              <option value="units">Enter units directly</option>
+            </Select>
+          </Field>
+          {sizeMode === "margin" && (
+            <Field
+              label={`Cost / margin (${account?.currency ?? "account currency"})`}
+              hint="Your own capital committed, before leverage and fees."
+            >
+              <Input
+                aria-label="Cost / margin"
+                name="cost"
+                type="number"
+                step="any"
+                min="0.00000001"
+                required
+                value={cost}
+                onChange={(e) => setCost(e.target.value)}
+              />
+            </Field>
+          )}
+          <Field
+            label="Size (units)"
+            hint={
+              sizeMode === "margin"
+                ? "Cost × leverage ÷ entry price"
+                : undefined
+            }
+          >
             <Input
               name="size"
               type="number"
               step="any"
               value={size}
-              onChange={(e) => setSize(e.target.value)}
+              readOnly={sizeMode === "margin"}
+              onChange={(e) => setManualSize(e.target.value)}
               required
             />
           </Field>
@@ -282,7 +342,10 @@ export function TradeForm({
               readOnly
             />
           </Field>
-          <Field label="% Capital usage">
+          <Field
+            label="% Capital usage"
+            hint="Margin ÷ realized account equity × 100"
+          >
             <Input
               name="capitalUsagePct"
               type="number"
@@ -345,6 +408,7 @@ export function TradeForm({
             multiply P/L again.
           </p>
           <div className="grid grid-cols-2 gap-4 text-sm md:grid-cols-4">
+            <Metric label="Position notional" value={size && entryPrice ? formatNumber(dec(size).times(entryPrice)) : "—"}/>
             <Metric
               label="Estimated initial margin"
               value={margin != null ? formatNumber(margin) : "—"}
@@ -449,7 +513,10 @@ export function TradeForm({
       </Card>
 
       <div className="flex gap-2">
-        <Button type="submit" disabled={!validLeverage}>
+        <Button
+          type="submit"
+          disabled={!validLeverage || !size || Number(size) <= 0}
+        >
           {initial?.id ? "Save changes" : "Create trade"}
         </Button>
       </div>

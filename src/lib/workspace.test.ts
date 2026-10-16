@@ -15,3 +15,14 @@ it("validates date filters", () => {
   expect(validDay("garbage")).toBeUndefined();
   expect(validDay("2026-10-16")).toBe("2026-10-16");
 });
+
+it("calculates units from margin and uses margin for capital usage", async () => {
+  const { sizeFromMargin } = await import("./workspace");
+  expect(sizeFromMargin(100, 5, 50)).toBe(10);
+  const r = positionRisk(1000, 10, 50, 45, 5)!;
+  expect(r.riskAmount).toBe(50);
+  expect(r.riskPct).toBe(5);
+  expect(r.capitalUsagePct).toBe(10);
+  expect(r.notionalUsagePct).toBe(50);
+  expect(sizeFromMargin(100, 5, 0)).toBeNull();
+});

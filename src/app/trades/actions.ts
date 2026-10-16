@@ -6,7 +6,7 @@ import { randomUUID } from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { accountBalances } from "@/lib/account-balances";
-import { positionRisk } from "@/lib/workspace";
+import { positionRisk, sizeFromMargin } from "@/lib/workspace";
 import { prisma } from "@/lib/db";
 
 function s(form: FormData, key: string): string {
@@ -37,12 +37,21 @@ async function buildData(form: FormData) {
   }
   const exitPrice = numOrNull(form, "exitPrice");
   const exitTime = dateOrNull(form, "exitTime");
+  const size =
+    s(form, "sizeMode") === "margin"
+      ? sizeFromMargin(
+          numOrNull(form, "cost") ?? 0,
+          leverage,
+          numOrNull(form, "entryPrice") ?? 0,
+        )
+      : numOrNull(form, "size");
+  if (size == null || size <= 0) redirect("/trades?error=invalid-size");
   const balance = (await accountBalances()).find(
     (a) => a.id === s(form, "accountId"),
   );
   const risk = positionRisk(
     balance?.equity ?? 0,
-    numOrNull(form, "size") ?? 0,
+    size,
     numOrNull(form, "entryPrice") ?? 0,
     numOrNull(form, "stopLoss"),
     leverage,
@@ -55,7 +64,7 @@ async function buildData(form: FormData) {
     strategyId: opt(form, "strategyId"),
     emotionId: opt(form, "emotionId"),
     direction: s(form, "direction") === "SHORT" ? "SHORT" : "LONG",
-    size: numOrNull(form, "size") ?? 0,
+    size,
     leverage,
     entryTime: dateOrNull(form, "entryTime") ?? new Date(),
     entryPrice: numOrNull(form, "entryPrice") ?? 0,

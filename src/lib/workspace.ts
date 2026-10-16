@@ -23,7 +23,8 @@ export function positionRisk(
     margin: notional.div(leverage).toNumber(),
     riskAmount: risk?.toNumber() ?? null,
     riskPct: risk ? risk.div(equity).times(100).toNumber() : null,
-    capitalUsagePct: notional.div(equity).times(100).toNumber(),
+    capitalUsagePct: notional.div(leverage).div(equity).times(100).toNumber(),
+    notionalUsagePct: notional.div(equity).times(100).toNumber(),
     marginPct: notional.div(leverage).div(equity).times(100).toNumber(),
   };
 }
@@ -32,4 +33,19 @@ export function validDay(value?: string) {
   return value && /^\d{4}-\d{2}-\d{2}$/.test(value) && !isNaN(Date.parse(value))
     ? value
     : undefined;
+}
+
+export function sizeFromMargin(
+  cost: number,
+  leverage: number,
+  entry: number,
+): number | null {
+  if (
+    ![cost, leverage, entry].every(Number.isFinite) ||
+    cost <= 0 ||
+    leverage < 1 ||
+    entry <= 0
+  )
+    return null;
+  return dec(cost).times(leverage).div(entry).toNumber();
 }

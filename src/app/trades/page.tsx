@@ -50,6 +50,12 @@ export default async function TradesPage({
         }
       />
 
+      {sp.error === "invalid-size" && (
+        <p role="alert" className="mb-4 text-negative">
+          Trade not saved. Enter a positive cost, entry price and valid
+          leverage, or a positive size.
+        </p>
+      )}
       {sp.error === "invalid-images" && (
         <p role="alert" className="mb-4 text-negative">
           Trade not saved. Screenshots must be PNG, JPEG, or WebP, up to 4 MB
