@@ -66,3 +66,13 @@ describe("deriveTrade", () => {
     expect(d.netPL).toBe(990);
   });
 });
+
+it("deducts entry and exit fees exactly once", () => {
+  const result = deriveTrade({ direction: "LONG", size: 2, entryTime: new Date(), entryPrice: 100, exitPrice: 110, status: "CLOSED", fees: 1.25, exitFees: 2.75 });
+  expect(result.grossPL).toBe(20);
+  expect(result.netPL).toBe(16);
+});
+it("preserves legacy total fees when exit fees are absent", () => {
+  const result = deriveTrade({ direction: "SHORT", size: 2, entryTime: new Date(), entryPrice: 110, exitPrice: 100, status: "CLOSED", fees: 4 });
+  expect(result.netPL).toBe(16);
+});

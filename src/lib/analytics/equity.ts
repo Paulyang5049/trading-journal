@@ -30,7 +30,15 @@ export function buildEquityCurve(input: EquityInput): EquityPoint[] {
   for (const e of events) {
     equity += e.flow + e.pl;
     realized += e.pl;
-    points.push({ time: e.time, equity, realizedPL: realized });
+    // Linked transfers occur at one instant: show their combined effect,
+    // not a temporary portfolio drawdown between the debit and credit.
+    const previous = points.at(-1);
+    if (previous?.time.getTime() === e.time.getTime()) {
+      previous.equity = equity;
+      previous.realizedPL = realized;
+    } else {
+      points.push({ time: e.time, equity, realizedPL: realized });
+    }
   }
   return points;
 }

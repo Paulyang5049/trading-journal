@@ -19,21 +19,27 @@ const links: { href: string; label: string; icon: LucideIcon }[] = [
   { href: "/trades", label: "Trading Log", icon: BookOpen },
   { href: "/accounts", label: "Account Capital", icon: Wallet },
   { href: "/preparation", label: "Preparation", icon: Brain },
-  { href: "/mistakes", label: "Mistakes", icon: AlertTriangle },
+  { href: "/mistakes", label: "Review & lessons", icon: AlertTriangle },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
 
 export function Nav() {
   const pathname = usePathname();
   return (
-    <aside className="flex w-60 shrink-0 flex-col border-r bg-surface">
+    <aside className="flex shrink-0 flex-col border-b bg-surface md:sticky md:top-0 md:h-screen md:w-56 md:border-r md:border-b-0">
       <div className="flex items-center gap-2 px-5 py-5">
         <div className="grid h-8 w-8 place-items-center rounded-[var(--radius)] bg-primary text-primary-foreground font-bold">
           T
         </div>
         <span className="font-semibold tracking-tight">Trading Journal</span>
       </div>
-      <nav className="flex-1 space-y-1 px-3">
+      <div className="hidden px-6 pb-3 pt-5 text-[10px] font-semibold uppercase tracking-[0.18em] text-muted md:block">
+        Your workspace
+      </div>
+      <nav
+        aria-label="Main navigation"
+        className="flex gap-1 overflow-x-auto px-3 pb-3 md:block md:flex-1 md:space-y-1"
+      >
         {links.map(({ href, label, icon: Icon }) => {
           const active =
             href === "/" ? pathname === "/" : pathname.startsWith(href);
@@ -41,10 +47,11 @@ export function Nav() {
             <Link
               key={href}
               href={href}
+              aria-current={active ? "page" : undefined}
               className={cn(
-                "flex items-center gap-3 rounded-[var(--radius)] px-3 py-2 text-sm font-medium transition",
+                "flex shrink-0 items-center gap-3 rounded-[var(--radius)] px-3 py-3 text-sm font-medium transition",
                 active
-                  ? "bg-surface-2 text-foreground"
+                  ? "bg-primary/10 text-primary"
                   : "text-muted hover:bg-surface-2 hover:text-foreground",
               )}
             >

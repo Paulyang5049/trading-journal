@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 
 const ASSET_CLASSES = ["Forex", "Stocks", "Crypto", "Futures", "Other"];
@@ -70,8 +71,16 @@ export async function createAsset(form: FormData) {
 }
 
 export async function deleteAsset(form: FormData) {
-  await prisma.asset.delete({ where: { id: str(form, "id") } });
+  const id = str(form, "id");
+  if (!id) return;
+  // Keep the usage check in the delete itself, including for stale browser tabs.
+  const result = await prisma.asset.deleteMany({
+    where: { id, trades: { none: {} } },
+  });
   revalidateAll();
+  if (result.count === 0) {
+    redirect("/settings?notice=asset-not-deleted#assets");
+  }
 }
 
 // ---- Strategies ----

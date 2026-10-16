@@ -58,9 +58,21 @@ export default async function TradesPage({
         }
       />
 
+      {sp.error === "invalid-images" && (
+        <p role="alert" className="mb-4 text-negative">
+          Trade not saved. Screenshots must be PNG, JPEG, or WebP, up to 4 MB
+          per entry or exit section.
+        </p>
+      )}
+      {sp.error === "invalid-leverage" && (
+        <p role="alert" className="mb-4 text-negative">
+          Trade not saved. Leverage must be a finite number of at least 1×.
+        </p>
+      )}
       {sp.imported && (
         <div className="mb-4 rounded-[var(--radius)] border border-positive/40 bg-positive/10 px-4 py-2.5 text-sm text-positive">
-          Imported {sp.imported} {sp.imported === "1" ? "trade" : "trades"} successfully.
+          Imported {sp.imported} {sp.imported === "1" ? "trade" : "trades"}{" "}
+          successfully.
         </div>
       )}
 
@@ -101,10 +113,28 @@ export default async function TradesPage({
         </form>
       </Card>
 
+      <div className="mb-5 grid grid-cols-3 gap-3">
+        {[
+          { label: "Matching trades", value: trades.length },
+          {
+            label: "Open positions",
+            value: trades.filter((t) => !t.derived.isClosed).length,
+          },
+          {
+            label: "Closed trades",
+            value: trades.filter((t) => t.derived.isClosed).length,
+          },
+        ].map((item) => (
+          <Card key={item.label}>
+            <p className="text-xs text-muted">{item.label}</p>
+            <p className="mt-2 text-2xl font-semibold">{item.value}</p>
+          </Card>
+        ))}
+      </div>
       {trades.length === 0 ? (
         <EmptyState
-          title="No trades yet"
-          description="Log your first trade to start building your journal."
+          title="No matching trades"
+          description="Adjust your filters or log a trade to build your journal."
           action={
             <Link href="/trades/new">
               <Button>New trade</Button>
@@ -117,6 +147,7 @@ export default async function TradesPage({
             <tr>
               <Th>Entry</Th>
               <Th>Asset</Th>
+              <Th>Strategy</Th>
               <Th>Dir</Th>
               <Th>Size</Th>
               <Th>Entry / Exit</Th>
@@ -132,11 +163,22 @@ export default async function TradesPage({
               return (
                 <tr key={row.id} className="hover:bg-surface-2">
                   <Td>
-                    <Link href={`/trades/${row.id}`} className="hover:text-primary">
+                    <Link
+                      href={`/trades/${row.id}`}
+                      className="hover:text-primary"
+                    >
                       {formatDateTime(row.entryTime)}
                     </Link>
                   </Td>
-                  <Td className="font-medium">{row.asset.symbol}</Td>
+                  <Td className="font-medium">
+                    <Link
+                      href={`/trades/${row.id}`}
+                      className="hover:text-primary"
+                    >
+                      {row.asset.symbol}
+                    </Link>
+                  </Td>
+                  <Td className="text-muted">{row.strategy?.name ?? "—"}</Td>
                   <Td>
                     <Badge
                       className={
@@ -159,16 +201,26 @@ export default async function TradesPage({
                     {row.status === "CLOSED" ? (
                       <span className="text-muted">Closed</span>
                     ) : (
-                      <Badge className="border-warning text-warning">Open</Badge>
+                      <Badge className="border-warning text-warning">
+                        Open
+                      </Badge>
                     )}
                   </Td>
-                  <Td className={`text-right font-medium ${plClass(derived.netPL)}`}>
-                    {derived.isClosed ? formatCurrency(derived.netPL, currency) : "—"}
+                  <Td
+                    className={`text-right font-medium ${plClass(derived.netPL)}`}
+                  >
+                    {derived.isClosed
+                      ? formatCurrency(derived.netPL, currency)
+                      : "—"}
                   </Td>
                   <Td className="text-right">
-                    {derived.actualRRR != null ? formatNumber(derived.actualRRR) : "—"}
+                    {derived.actualRRR != null
+                      ? formatNumber(derived.actualRRR)
+                      : "—"}
                   </Td>
-                  <Td className="text-muted">{formatDuration(derived.durationMin)}</Td>
+                  <Td className="text-muted">
+                    {formatDuration(derived.durationMin)}
+                  </Td>
                 </tr>
               );
             })}

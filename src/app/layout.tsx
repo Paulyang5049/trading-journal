@@ -5,7 +5,10 @@ import { Providers } from "@/components/providers";
 import { Nav } from "@/components/nav";
 
 const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
-const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });
+const geistMono = Geist_Mono({
+  variable: "--font-geist-mono",
+  subsets: ["latin"],
+});
 
 export const metadata: Metadata = {
   title: "Trading Journal",
@@ -23,10 +26,10 @@ export default function RootLayout({
     >
       <body className="min-h-full">
         <Providers>
-          <div className="flex min-h-screen">
+          <div className="flex min-h-screen flex-col md:flex-row">
             <Nav />
-            <main className="flex-1 overflow-x-hidden px-6 py-6 lg:px-10">
-              <div className="mx-auto max-w-6xl">{children}</div>
+            <main className="min-w-0 flex-1 overflow-x-hidden px-4 py-8 md:px-7 lg:px-10">
+              <div className="mx-auto max-w-7xl">{children}</div>
             </main>
           </div>
         </Providers>

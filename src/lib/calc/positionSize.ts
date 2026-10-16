@@ -7,6 +7,7 @@ export interface PositionSizeInput {
   stopLoss: number;
   takeProfit?: number | null;
   direction?: "LONG" | "SHORT";
+  leverage?: number; // notional / initial margin; defaults to 1x
 }
 
 export interface PositionSizeResult {
@@ -19,6 +20,11 @@ export interface PositionSizeResult {
   maxReward: number | null; // potential profit if TP hit
   plannedRRR: number | null; // reward / risk
   potentialNetPLPct: number | null; // maxReward / totalCapital * 100
+  marginRequired: number;
+  marginUsagePct: number;
+  effectiveLeverage: number; // notional / total account capital
+  rewardOnMarginPct: number | null;
+  insufficientMargin: boolean;
 }
 
 /**
@@ -29,6 +35,10 @@ export interface PositionSizeResult {
 export function calculatePositionSize(
   input: PositionSizeInput,
 ): PositionSizeResult {
+  const leverage = input.leverage ?? 1;
+  if (!Number.isFinite(leverage) || leverage < 1) {
+    throw new RangeError("Leverage must be at least 1x.");
+  }
   const capital = dec(input.totalCapital);
   const entry = dec(input.entryPrice);
   const stop = dec(input.stopLoss);
@@ -39,6 +49,7 @@ export function calculatePositionSize(
     ? dec(0)
     : riskAmount.div(riskPerUnit);
   const positionValue = positionSize.times(entry);
+  const marginRequired = positionValue.div(leverage);
   const capitalUsagePct = capital.isZero()
     ? dec(0)
     : positionValue.div(capital).times(100);
@@ -68,5 +79,17 @@ export function calculatePositionSize(
     maxReward: maxReward ? maxReward.toNumber() : null,
     plannedRRR,
     potentialNetPLPct,
+    marginRequired: marginRequired.toNumber(),
+    marginUsagePct: capital.isZero()
+      ? 0
+      : marginRequired.div(capital).times(100).toNumber(),
+    effectiveLeverage: capital.isZero()
+      ? 0
+      : positionValue.div(capital).toNumber(),
+    rewardOnMarginPct:
+      maxReward == null || marginRequired.isZero()
+        ? null
+        : maxReward.div(marginRequired).times(100).toNumber(),
+    insufficientMargin: marginRequired.gt(capital),
   };
 }

@@ -28,6 +28,11 @@ function dateOrNull(form: FormData, key: string): Date | null {
 }
 
 function buildData(form: FormData) {
+  const rawLeverage = s(form, "leverage");
+  const leverage = rawLeverage === "" ? 1 : Number(rawLeverage);
+  if (!Number.isFinite(leverage) || leverage < 1) {
+    redirect("/trades?error=invalid-leverage");
+  }
   const exitPrice = numOrNull(form, "exitPrice");
   const exitTime = dateOrNull(form, "exitTime");
   // A trade is CLOSED once it has an exit price.
@@ -39,6 +44,7 @@ function buildData(form: FormData) {
     emotionId: opt(form, "emotionId"),
     direction: s(form, "direction") === "SHORT" ? "SHORT" : "LONG",
     size: numOrNull(form, "size") ?? 0,
+    leverage,
     entryTime: dateOrNull(form, "entryTime") ?? new Date(),
     entryPrice: numOrNull(form, "entryPrice") ?? 0,
     stopLoss: numOrNull(form, "stopLoss"),
@@ -46,6 +52,7 @@ function buildData(form: FormData) {
     exitTime,
     exitPrice,
     fees: numOrNull(form, "fees") ?? 0,
+    exitFees: numOrNull(form, "exitFees") ?? 0,
     riskPct: numOrNull(form, "riskPct"),
     capitalUsagePct: numOrNull(form, "capitalUsagePct"),
     confidence: numOrNull(form, "confidence"),
@@ -65,10 +72,56 @@ async function syncMistakes(tradeId: string, form: FormData) {
   }
 }
 
+async function prepareScreenshots(form: FormData) {
+  const groups = [
+    { name: "entryImages", kind: "PRE" },
+    { name: "exitImages", kind: "POST" },
+  ];
+  const types: Record<string, string> = {
+    "image/png": "png",
+    "image/jpeg": "jpg",
+    "image/webp": "webp",
+  };
+  const selected = groups.map((group) => ({
+    ...group,
+    files: form
+      .getAll(group.name)
+      .filter((f): f is File => f instanceof File && f.size > 0),
+  }));
+  for (const group of selected) {
+    if (
+      group.files.some((f) => !types[f.type]) ||
+      group.files.reduce((sum, f) => sum + f.size, 0) > 4 * 1024 * 1024
+    ) {
+      redirect("/trades?error=invalid-images");
+    }
+  }
+  const screenshots: { url: string; kind: string; caption: string }[] = [];
+  for (const group of selected)
+    for (const file of group.files) {
+      const filename = `${randomUUID()}.${types[file.type]}`;
+      const dir = path.join(process.cwd(), "public", "uploads");
+      await mkdir(dir, { recursive: true });
+      await writeFile(
+        path.join(dir, filename),
+        Buffer.from(await file.arrayBuffer()),
+      );
+      screenshots.push({
+        url: `/uploads/${filename}`,
+        kind: group.kind,
+        caption: file.name,
+      });
+    }
+  return screenshots;
+}
+
 export async function createTrade(form: FormData) {
   const data = buildData(form);
   if (!data.accountId || !data.assetId) return;
-  const trade = await prisma.trade.create({ data });
+  const screenshots = await prepareScreenshots(form);
+  const trade = await prisma.trade.create({
+    data: { ...data, screenshots: { create: screenshots } },
+  });
   await syncMistakes(trade.id, form);
   revalidatePath("/trades");
   revalidatePath("/");
@@ -79,7 +132,11 @@ export async function updateTrade(form: FormData) {
   const id = s(form, "id");
   if (!id) return;
   const data = buildData(form);
-  await prisma.trade.update({ where: { id }, data });
+  const screenshots = await prepareScreenshots(form);
+  await prisma.trade.update({
+    where: { id },
+    data: { ...data, screenshots: { create: screenshots } },
+  });
   await syncMistakes(id, form);
   revalidatePath("/trades");
   revalidatePath(`/trades/${id}`);
@@ -104,7 +161,10 @@ export async function uploadScreenshot(form: FormData) {
   const filename = `${randomUUID()}.${ext}`;
   const dir = path.join(process.cwd(), "public", "uploads");
   await mkdir(dir, { recursive: true });
-  await writeFile(path.join(dir, filename), Buffer.from(await file.arrayBuffer()));
+  await writeFile(
+    path.join(dir, filename),
+    Buffer.from(await file.arrayBuffer()),
+  );
 
   await prisma.tradeScreenshot.create({
     data: {

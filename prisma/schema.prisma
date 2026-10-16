@@ -27,6 +27,7 @@ model Account {
 }
 
 model CapitalEvent {
+  transferId String?
   id        String   @id @default(cuid())
   accountId String
   account   Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
@@ -36,6 +37,7 @@ model CapitalEvent {
   note      String?
 
   @@index([accountId])
+  @@index([transferId])
 }
 
 model Asset {
@@ -77,6 +79,7 @@ model Trade {
   emotion    Emotion?  @relation(fields: [emotionId], references: [id], onDelete: SetNull)
 
   direction       String    @default("LONG") // LONG | SHORT
+  leverage        Float     @default(1)
   size            Decimal
   entryTime       DateTime
   entryPrice      Decimal
@@ -84,6 +87,7 @@ model Trade {
   takeProfit      Decimal?
   exitTime        DateTime?
   exitPrice       Decimal?
+  exitFees        Decimal   @default(0)
   fees            Decimal   @default(0)
 
   riskPct         Float?

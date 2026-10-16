@@ -7,7 +7,7 @@ import type { DerivedTrade, Outcome, TradeInput } from "./types";
  * Conventions (general spot/CFD model, mirrors the source spreadsheet):
  *   gross P/L (LONG)  = (exit - entry) * size
  *   gross P/L (SHORT) = (entry - exit) * size
- *   net P/L           = gross P/L - fees
+ *   net P/L           = gross P/L - fees - exitFees
  *   net P/L %         = net P/L / (entry * size) * 100   (return on notional)
  *   riskPerUnit       = |entry - stopLoss|
  *   plannedRRR        = |takeProfit - entry| / riskPerUnit
@@ -18,7 +18,7 @@ import type { DerivedTrade, Outcome, TradeInput } from "./types";
 export function deriveTrade(t: TradeInput): DerivedTrade {
   const entry = dec(t.entryPrice);
   const size = dec(t.size);
-  const fees = dec(t.fees ?? 0);
+  const fees = dec(t.fees ?? 0).plus(t.exitFees ?? 0);
   const isClosed = t.status === "CLOSED" && t.exitPrice != null;
 
   const riskPerUnit =

@@ -16,6 +16,7 @@ export interface TradeInput {
   exitTime?: Date | null;
   exitPrice?: number | null;
   fees?: number | null;
+  exitFees?: number | null;
   status: TradeStatus;
 }
 

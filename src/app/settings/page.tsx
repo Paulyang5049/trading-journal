@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import { prisma } from "@/lib/db";
+import Link from "next/link";
 import { num, formatCurrency } from "@/lib/money";
 import {
   Card,
@@ -40,10 +41,13 @@ function DeleteForm({ action, id }: { action: (f: FormData) => void; id: string 
   );
 }
 
-export default async function SettingsPage() {
+export default async function SettingsPage({ searchParams }: {
+  searchParams: Promise<Record<string, string | undefined>>;
+}) {
+  const sp = await searchParams;
   const [accounts, assets, strategies, emotions, settings] = await Promise.all([
     prisma.account.findMany({ orderBy: { createdAt: "asc" } }),
-    prisma.asset.findMany({ include: { account: true }, orderBy: { symbol: "asc" } }),
+    prisma.asset.findMany({ include: { account: true, _count: { select: { trades: true } } }, orderBy: { symbol: "asc" } }),
     prisma.strategy.findMany({ orderBy: { name: "asc" } }),
     prisma.emotion.findMany({ orderBy: { score: "desc" } }),
     prisma.settings.findUnique({ where: { id: 1 } }),
@@ -156,8 +160,10 @@ export default async function SettingsPage() {
       </Card>
 
       {/* Assets */}
-      <Card>
+      <Card id="assets">
         <h2 className="mb-4 text-lg font-semibold">Assets</h2>
+        <p className="mb-4 text-sm text-muted">Assets used by saved trades cannot be deleted. Open the linked trades to review where an asset is used.</p>
+        {sp.notice === "asset-not-deleted" && <p role="status" className="mb-4 rounded-lg border p-3 text-sm">This asset could not be deleted because it is used by saved trades or has already been removed. Your trades have been preserved.</p>}
         <form
           action={createAsset}
           className="mb-5 grid grid-cols-2 gap-3 md:grid-cols-4"
@@ -197,7 +203,11 @@ export default async function SettingsPage() {
               >
                 <span className="font-medium">{a.symbol}</span>
                 <span className="text-xs text-muted">{a.assetClass}</span>
-                <DeleteForm action={deleteAsset} id={a.id} />
+                {a._count.trades > 0 ? (
+                  <Link href={`/trades?asset=${a.id}`} className="text-xs text-primary hover:underline" aria-label={`View ${a._count.trades} trades using ${a.symbol}`}>
+                    Used in {a._count.trades} {a._count.trades === 1 ? "trade" : "trades"}
+                  </Link>
+                ) : <DeleteForm action={deleteAsset} id={a.id} />}
               </span>
             ))}
           </div>

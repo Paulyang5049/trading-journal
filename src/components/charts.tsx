@@ -3,6 +3,9 @@
 import {
   ResponsiveContainer,
   AreaChart,
+  LineChart,
+  Line,
+  Legend,
   Area,
   BarChart,
   Bar,
@@ -30,7 +33,9 @@ const tooltipStyle = {
 
 export function EquityChart({
   data,
+  seriesName = "Equity",
 }: {
+  seriesName?: string;
   data: { label: string; equity: number }[];
 }) {
   return (
@@ -43,7 +48,11 @@ export function EquityChart({
           </linearGradient>
         </defs>
         <CartesianGrid stroke={GRID} strokeDasharray="3 3" vertical={false} />
-        <XAxis dataKey="label" tick={{ fill: AXIS, fontSize: 11 }} minTickGap={24} />
+        <XAxis
+          dataKey="label"
+          tick={{ fill: AXIS, fontSize: 11 }}
+          minTickGap={24}
+        />
         <YAxis
           tick={{ fill: AXIS, fontSize: 11 }}
           width={64}
@@ -57,6 +66,7 @@ export function EquityChart({
         <Area
           type="monotone"
           dataKey="equity"
+          name={seriesName}
           stroke={PRIMARY}
           strokeWidth={2}
           fill="url(#equityFill)"
@@ -78,9 +88,16 @@ export function SignedBarChart({
     <ResponsiveContainer width="100%" height={height}>
       <BarChart data={data} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
         <CartesianGrid stroke={GRID} strokeDasharray="3 3" vertical={false} />
-        <XAxis dataKey="label" tick={{ fill: AXIS, fontSize: 11 }} interval={0} />
+        <XAxis
+          dataKey="label"
+          tick={{ fill: AXIS, fontSize: 11 }}
+          interval={0}
+        />
         <YAxis tick={{ fill: AXIS, fontSize: 11 }} width={56} />
-        <Tooltip contentStyle={tooltipStyle} cursor={{ fill: "var(--surface-2)" }} />
+        <Tooltip
+          contentStyle={tooltipStyle}
+          cursor={{ fill: "var(--surface-2)" }}
+        />
         <ReferenceLine y={0} stroke={GRID} />
         <Bar dataKey="value" radius={[3, 3, 0, 0]}>
           {data.map((d, i) => (
@@ -104,11 +121,72 @@ export function BarChartSimple({
     <ResponsiveContainer width="100%" height={height}>
       <BarChart data={data} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
         <CartesianGrid stroke={GRID} strokeDasharray="3 3" vertical={false} />
-        <XAxis dataKey="label" tick={{ fill: AXIS, fontSize: 11 }} interval={0} />
+        <XAxis
+          dataKey="label"
+          tick={{ fill: AXIS, fontSize: 11 }}
+          interval={0}
+        />
         <YAxis tick={{ fill: AXIS, fontSize: 11 }} width={44} />
-        <Tooltip contentStyle={tooltipStyle} cursor={{ fill: "var(--surface-2)" }} />
+        <Tooltip
+          contentStyle={tooltipStyle}
+          cursor={{ fill: "var(--surface-2)" }}
+        />
         <Bar dataKey="value" fill={PRIMARY} radius={[3, 3, 0, 0]} />
       </BarChart>
+    </ResponsiveContainer>
+  );
+}
+
+export function AccountComparisonChart({
+  data,
+  accounts,
+}: {
+  data: { time: number; [key: string]: number }[];
+  accounts: { id: string; name: string }[];
+}) {
+  const colors = [
+    "#5163d9",
+    "#168264",
+    "#d97706",
+    "#ce4e80",
+    "#0891b2",
+    "#9333ea",
+  ];
+  return (
+    <ResponsiveContainer width="100%" height={340}>
+      <LineChart
+        data={data}
+        margin={{ top: 12, right: 20, left: 8, bottom: 8 }}
+      >
+        <CartesianGrid stroke={GRID} strokeDasharray="3 3" vertical={false} />
+        <XAxis
+          dataKey="time"
+          type="number"
+          domain={["dataMin", "dataMax"]}
+          tickFormatter={(v) => new Date(v).toLocaleDateString()}
+          tick={{ fill: AXIS, fontSize: 11 }}
+        />
+        <YAxis width={65} tick={{ fill: AXIS, fontSize: 11 }} />
+        <Tooltip
+          contentStyle={tooltipStyle}
+          labelFormatter={(v) => new Date(Number(v)).toLocaleString()}
+          formatter={(v) => Number(v).toFixed(2)}
+        />
+        <Legend />
+        {accounts.map((account, i) => (
+          <Line
+            key={account.id}
+            dataKey={account.id}
+            name={account.name}
+            type="stepAfter"
+            stroke={colors[i % colors.length]}
+            strokeDasharray={i >= colors.length ? "6 3" : undefined}
+            strokeWidth={2}
+            dot={data.length < 2}
+            isAnimationActive={false}
+          />
+        ))}
+      </LineChart>
     </ResponsiveContainer>
   );
 }

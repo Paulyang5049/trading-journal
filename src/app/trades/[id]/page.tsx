@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { deriveTrade } from "@/lib/analytics";
 import { toTradeInput } from "@/lib/trades";
-import { formatCurrency, formatNumber } from "@/lib/money";
+import { dec, formatCurrency, formatNumber } from "@/lib/money";
 import { formatDateTime, formatDuration } from "@/lib/format";
 import {
   PageHeader,
@@ -61,10 +61,15 @@ export default async function TradeDetailPage({
 
       {/* Outcome summary */}
       <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-        <Stat label="Status" value={trade.status === "CLOSED" ? "Closed" : "Open"} />
+        <Stat
+          label="Status"
+          value={trade.status === "CLOSED" ? "Closed" : "Open"}
+        />
         <Stat
           label="Net P/L"
-          value={derived.isClosed ? formatCurrency(derived.netPL, currency) : "—"}
+          value={
+            derived.isClosed ? formatCurrency(derived.netPL, currency) : "—"
+          }
           className={plClass(derived.netPL)}
         />
         <Stat
@@ -74,7 +79,9 @@ export default async function TradeDetailPage({
         />
         <Stat
           label="Actual RRR"
-          value={derived.actualRRR != null ? formatNumber(derived.actualRRR) : "—"}
+          value={
+            derived.actualRRR != null ? formatNumber(derived.actualRRR) : "—"
+          }
         />
       </div>
 
@@ -82,25 +89,71 @@ export default async function TradeDetailPage({
         <Card>
           <h2 className="mb-4 text-lg font-semibold">Position</h2>
           <dl className="space-y-2 text-sm">
+            <Row label="Leverage" value={`${formatNumber(trade.leverage)}×`} />
+            <Row
+              label="Estimated initial margin"
+              value={formatCurrency(
+                dec(trade.size.toString())
+                  .times(trade.entryPrice.toString())
+                  .div(trade.leverage)
+                  .toNumber(),
+                currency,
+              )}
+            />
+            <Row
+              label="Exit fees"
+              value={formatCurrency(Number(trade.exitFees), currency)}
+            />
+            <Row
+              label="Total fees"
+              value={formatCurrency(
+                dec(trade.fees.toString())
+                  .plus(trade.exitFees.toString())
+                  .toNumber(),
+                currency,
+              )}
+            />
             <Row label="Direction" value={trade.direction} />
             <Row label="Size" value={formatNumber(Number(trade.size), 4)} />
-            <Row label="Entry price" value={formatNumber(Number(trade.entryPrice), 4)} />
+            <Row
+              label="Entry price"
+              value={formatNumber(Number(trade.entryPrice), 4)}
+            />
             <Row
               label="Stop loss"
-              value={trade.stopLoss != null ? formatNumber(Number(trade.stopLoss), 4) : "—"}
+              value={
+                trade.stopLoss != null
+                  ? formatNumber(Number(trade.stopLoss), 4)
+                  : "—"
+              }
             />
             <Row
               label="Take profit"
-              value={trade.takeProfit != null ? formatNumber(Number(trade.takeProfit), 4) : "—"}
+              value={
+                trade.takeProfit != null
+                  ? formatNumber(Number(trade.takeProfit), 4)
+                  : "—"
+              }
             />
             <Row
               label="Exit price"
-              value={trade.exitPrice != null ? formatNumber(Number(trade.exitPrice), 4) : "—"}
+              value={
+                trade.exitPrice != null
+                  ? formatNumber(Number(trade.exitPrice), 4)
+                  : "—"
+              }
             />
-            <Row label="Fees" value={formatCurrency(Number(trade.fees), currency)} />
+            <Row
+              label="Entry / existing fees"
+              value={formatCurrency(Number(trade.fees), currency)}
+            />
             <Row
               label="Planned RRR"
-              value={derived.plannedRRR != null ? formatNumber(derived.plannedRRR) : "—"}
+              value={
+                derived.plannedRRR != null
+                  ? formatNumber(derived.plannedRRR)
+                  : "—"
+              }
             />
             <Row label="Duration" value={formatDuration(derived.durationMin)} />
             <Row label="Exit time" value={formatDateTime(trade.exitTime)} />
@@ -112,12 +165,25 @@ export default async function TradeDetailPage({
           <dl className="space-y-2 text-sm">
             <Row label="Strategy" value={trade.strategy?.name ?? "—"} />
             <Row label="Emotion" value={trade.emotion?.name ?? "—"} />
-            <Row label="Confidence" value={trade.confidence ? `${trade.confidence}/5` : "—"} />
-            <Row label="Discipline" value={trade.discipline ? `${trade.discipline}/5` : "—"} />
-            <Row label="% Risk" value={trade.riskPct != null ? `${trade.riskPct}%` : "—"} />
+            <Row
+              label="Confidence"
+              value={trade.confidence ? `${trade.confidence}/5` : "—"}
+            />
+            <Row
+              label="Discipline"
+              value={trade.discipline ? `${trade.discipline}/5` : "—"}
+            />
+            <Row
+              label="% Risk"
+              value={trade.riskPct != null ? `${trade.riskPct}%` : "—"}
+            />
             <Row
               label="% Capital"
-              value={trade.capitalUsagePct != null ? `${trade.capitalUsagePct}%` : "—"}
+              value={
+                trade.capitalUsagePct != null
+                  ? `${trade.capitalUsagePct}%`
+                  : "—"
+              }
             />
           </dl>
           {trade.mistakes.length > 0 && (
@@ -125,7 +191,10 @@ export default async function TradeDetailPage({
               <p className="mb-2 text-xs font-medium text-muted">Mistakes</p>
               <div className="flex flex-wrap gap-2">
                 {trade.mistakes.map((m) => (
-                  <Badge key={m.mistakeId} className="border-negative text-negative">
+                  <Badge
+                    key={m.mistakeId}
+                    className="border-negative text-negative"
+                  >
                     {m.mistake.name}
                   </Badge>
                 ))}
@@ -147,7 +216,10 @@ export default async function TradeDetailPage({
         {trade.screenshots.length > 0 && (
           <div className="mb-5 grid grid-cols-2 gap-4 md:grid-cols-3">
             {trade.screenshots.map((sc) => (
-              <div key={sc.id} className="overflow-hidden rounded-[var(--radius)] border">
+              <div
+                key={sc.id}
+                className="overflow-hidden rounded-[var(--radius)] border"
+              >
                 <Image
                   src={sc.url}
                   alt={sc.caption ?? "screenshot"}
@@ -164,7 +236,10 @@ export default async function TradeDetailPage({
                   <form action={deleteScreenshot}>
                     <input type="hidden" name="id" value={sc.id} />
                     <input type="hidden" name="tradeId" value={trade.id} />
-                    <button aria-label="delete" className="text-muted hover:text-negative">
+                    <button
+                      aria-label="delete"
+                      className="text-muted hover:text-negative"
+                    >
                       <Trash2 size={14} />
                     </button>
                   </form>

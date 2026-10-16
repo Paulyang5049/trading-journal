@@ -43,3 +43,53 @@ describe("calculatePositionSize", () => {
     expect(r.positionSize).toBe(0);
   });
 });
+
+describe("leverage and margin", () => {
+  const input = {
+    totalCapital: 1000,
+    riskPct: 2,
+    entryPrice: 100,
+    stopLoss: 99,
+    takeProfit: 103,
+  };
+  it("reduces margin without multiplying risk-based size or P/L", () => {
+    const cash = calculatePositionSize(input);
+    const leveraged = calculatePositionSize({ ...input, leverage: 5 });
+    expect(cash.marginRequired).toBe(2000);
+    expect(cash.insufficientMargin).toBe(true);
+    expect(leveraged.marginRequired).toBe(400);
+    expect(leveraged.marginUsagePct).toBe(40);
+    expect(leveraged.effectiveLeverage).toBe(2);
+    expect(leveraged.rewardOnMarginPct).toBe(15);
+    expect(leveraged.insufficientMargin).toBe(false);
+    expect(leveraged.positionSize).toBe(cash.positionSize);
+    expect(leveraged.maxRisk).toBe(20);
+    expect(leveraged.maxReward).toBe(60);
+  });
+  it("supports short positions and exact margin capacity", () => {
+    const r = calculatePositionSize({
+      ...input,
+      direction: "SHORT",
+      stopLoss: 101,
+      takeProfit: 97,
+      leverage: 2,
+    });
+    expect(r.marginRequired).toBe(1000);
+    expect(r.insufficientMargin).toBe(false);
+    expect(r.maxReward).toBe(60);
+  });
+  it.each([0, -1, 0.5, NaN, Infinity])(
+    "rejects invalid leverage %s",
+    (leverage) => {
+      expect(() => calculatePositionSize({ ...input, leverage })).toThrow(
+        "Leverage must be at least 1x.",
+      );
+    },
+  );
+  it("does not invent a return when the target is missing", () => {
+    expect(
+      calculatePositionSize({ ...input, takeProfit: null, leverage: 5 })
+        .rewardOnMarginPct,
+    ).toBeNull();
+  });
+});

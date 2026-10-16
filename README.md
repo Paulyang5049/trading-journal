@@ -17,6 +17,10 @@ own machine with zero external services.
 - **Preparation** — a watchlist and a position-size / risk calculator.
 - **Setup** — manage accounts, assets, strategies, emotions, mistakes and goals.
 - Dark / light theme.
+- **Trading calendar** — browse monthly realized P/L by UTC exit date and open the underlying trades for any active day.
+- **Review & lessons** — compare planned and actual R alongside confidence, discipline, and trade notes.
+- **Currency-aware dashboard** — filter by currency and account so balances in different currencies are never added together. Dashboard metrics cover all time; the calendar has its own month navigation.
+- **Responsive workspace** — light theme by default, with a desktop sidebar and horizontal navigation on smaller screens.
 
 All monetary math runs through `decimal.js` (no binary-float rounding), and every
 analytics formula is a pure function covered by unit tests.

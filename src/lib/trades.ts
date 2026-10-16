@@ -29,6 +29,7 @@ export function toTradeInput(t: {
   exitTime: Date | null;
   exitPrice: unknown;
   fees: unknown;
+  exitFees?: unknown;
   status: string;
 }): TradeInput {
   return {
@@ -41,6 +42,7 @@ export function toTradeInput(t: {
     exitTime: t.exitTime,
     exitPrice: t.exitPrice != null ? num(t.exitPrice as never) : null,
     fees: num(t.fees as never),
+    exitFees: num(t.exitFees as never),
     status: t.status === "CLOSED" ? "CLOSED" : "OPEN",
   };
 }
